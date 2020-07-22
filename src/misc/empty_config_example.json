@@ -1,0 +1,8 @@
+{
+  "sdkConfig": {
+    "SDK_INGESTION_INTERVAL": 60,
+    "SDK_INGESTION_MAX_CALLS": 500
+  },
+  "hashKey": "1234",
+  "flags": []
+}

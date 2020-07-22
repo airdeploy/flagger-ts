@@ -1,0 +1,16 @@
+.idea
+.vscode
+coverage
+node_modules/
+examples/nodejs/node_modules/
+.gitignore
+.prettierignore
+.prettierrc
+jest.config.js
+rollup.config.js
+tsconfig.json
+tslint.json
+yarn.lock
+yarn-error.log
+.DS_Store
+.github

@@ -1,0 +1,15 @@
+{
+  "name": "flagger-server-example",
+  "version": "1.0.0",
+  "main": "core-example.js",
+  "private": true,
+  "scripts": {
+    "start": "node core-example.js",
+    "start-flagger": "node flagger-example.js"
+  },
+  "dependencies": {
+    "flagger": "../..",
+    "nock": "^12.0.3"
+  },
+  "license": "MIT"
+}
