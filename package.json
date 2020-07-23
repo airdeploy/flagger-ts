@@ -1,5 +1,5 @@
 {
-  "name": "shadow-blade",
+  "name": "flagger",
   "version": "3.0.0",
   "description": "Flagger typescript",
   "main": "dist/index.cjs.js",
