@@ -55,8 +55,8 @@
     "typedoc": "^0.14.2",
     "typescript": "^3.2.2"
   },
-  "author": "gavrishgerman@gmail.com",
-  "license": "ISC",
+  "author": "engineering@airdeploy.io",
+  "license": "MIT",
   "dependencies": {
     "axios": "^0.18.0",
     "axios-retry": "^3.1.2",
