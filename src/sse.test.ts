@@ -30,28 +30,43 @@ afterAll(() => {
 
 describe('sse tests', () => {
   it('addFlaggerConfigUpdateListener test', async () => {
+    const newCodename = 'someNewCodename'
+    let consumed = false
     const sseServer = new SSEServer<IFlaggerConfiguration>(SSE_PORT)
     await sseServer.start()
-    const flaggerConfigurationUpdateListener = (
-      newConfig: IFlaggerConfiguration
-    ) => {
+    const listener = (newConfig: IFlaggerConfiguration) => {
+      consumed = true
       expect(newConfig).toHaveProperty('sdkConfig')
       expect(newConfig).toHaveProperty('hashKey')
       expect(newConfig).toHaveProperty('flags')
-      Flagger.removeFlaggerConfigUpdateListener(
-        flaggerConfigurationUpdateListener
-      )
+      if (newConfig.flags) {
+        expect(newConfig.flags[0].codename).toEqual(newCodename)
+      }
+      Flagger.removeFlaggerConfigUpdateListener(listener)
     }
-    Flagger.addFlaggerConfigUpdateListener(flaggerConfigurationUpdateListener)
     await Flagger.init({
       apiKey,
       sourceURL,
       sseURL: 'http://localhost:' + SSE_PORT + '/events/'
     })
 
+    Flagger.addFlaggerConfigUpdateListener(listener)
+
+    const sseConfig = config
+    if (sseConfig.flags) {
+      sseConfig.flags[0].codename = newCodename
+    }
+
+    // push new data via sse with a delay
     await wait(() => {
-      sseServer.pushNewData(config, 'flagConfigUpdate')
-    }, 100)
+      sseServer.pushNewData(sseConfig, 'flagConfigUpdate')
+    }, 1000)
+
+    await wait(() => {
+      // wait for the data to be consumed by the flagger
+    }, 1000)
+
+    expect(consumed).toBeTruthy()
     await Flagger.shutdown()
     await sseServer.stop()
   })

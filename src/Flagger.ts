@@ -361,11 +361,6 @@ export class Flagger {
 
   private static updateConfig(config: IFlaggerConfiguration) {
     logger.debug('New FlaggerConfiguration: ', JSON.stringify(config))
-    this.instance.flaggerConfigListeners.forEach(
-      (listener: (config: IFlaggerConfiguration) => void) => {
-        listener(config)
-      }
-    )
     this.instance.flaggerConfiguration = config
     this.instance.core.setConfig(config)
     if (this.instance.ingester) {
@@ -376,6 +371,11 @@ export class Flagger {
         config.sdkConfig.SDK_INGESTION_INTERVAL * 1000
       )
     }
+    this.instance.flaggerConfigListeners.forEach(
+      (listener: (config: IFlaggerConfiguration) => void) => {
+        listener(config)
+      }
+    )
   }
 
   private flaggerConfiguration!: IFlaggerConfiguration

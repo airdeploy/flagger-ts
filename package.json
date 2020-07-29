@@ -1,18 +1,21 @@
 {
   "name": "flagger",
-  "version": "3.0.0",
-  "description": "Flagger typescript",
+  "version": "3.0.1",
+  "description": "An open source JavaScript SDK for feature flagging (feature gating, feature toggles) for Node.js and Javascript applications",
   "main": "dist/index.cjs.js",
   "module": "dist/index.es.js",
   "browser": "dist/index.umd.js",
   "types": "./types",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/airdeploy/flagger-ts.git"
+  },
   "scripts": {
     "prebuild": "rimraf dist/* types/* && yarn lint",
     "build": "tsc && yarn rollup -c && rimraf temp",
     "lint": "tslint -p tsconfig.json -c tslint.json",
     "lint:fix": "tslint -p tsconfig.json -c tslint.json --fix",
-    "test": "jest",
-    "prepare": "if echo $PWD | grep -i `yarn cache dir`; then yarn build; rm .gitignore; fi"
+    "test": "jest"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^11.0.2",
