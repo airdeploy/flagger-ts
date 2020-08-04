@@ -4,17 +4,14 @@ export interface IWhitelistEntity extends IEntity {
   variation: string
 }
 
-export interface IEntity {
-  id: string
+export interface IEntity extends IGroup {
   group?: IGroup
-  type?: string
-  name?: string
-  attributes?: IAttributes
 }
 
 export interface IGroup {
   id: string
   type?: string
+  name?: string
   attributes?: IAttributes
 }
 
@@ -99,7 +96,20 @@ export function escapeEntity(entity?: IEntity): IEntity | undefined {
   if (!entity) {
     return undefined
   }
-  const clone = JSON.parse(JSON.stringify(entity))
+  const clone: IEntity = escapeGroup(entity)
+
+  if (clone.group) {
+    clone.group = escapeGroup(clone.group)
+  }
+
+  if (!clone.type) {
+    clone.type = 'User'
+  }
+  return clone
+}
+
+const escapeGroup = (group: IGroup): IGroup => {
+  const clone = JSON.parse(JSON.stringify(group))
   if (!clone.attributes) {
     clone.attributes = {}
   }
@@ -112,9 +122,6 @@ export function escapeEntity(entity?: IEntity): IEntity | undefined {
     clone.attributes.id = clone.id
   }
 
-  if (!clone.type) {
-    clone.type = 'User'
-  }
   return clone
 }
 

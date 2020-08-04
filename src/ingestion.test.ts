@@ -28,7 +28,27 @@ const event = {
     referrer: 'www.Google.com',
     shirt_size: 'medium'
   },
-  entity: {id: '1', type: 'Company'},
+  entity: {
+    id: '1',
+    type: 'Company',
+    name: 'ironman@stark.com',
+    attributes: {
+      tShirtSize: 'M',
+      dateCreated: '2018-02-18',
+      timeConverted: '2018-02-20T21:54:00.630815+00:00',
+      ownsProperty: true,
+      age: 39
+    },
+    group: {
+      type: 'Club',
+      id: '5678',
+      name: 'Avengers Club',
+      attributes: {
+        founded: '2016-01-01',
+        active: true
+      }
+    }
+  },
   timestamp: new Date().toISOString()
 }
 
