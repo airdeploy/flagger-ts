@@ -116,19 +116,13 @@ export class Flagger {
       axiosInstance
     )
 
-    await Promise.resolve(
-      axiosInstance.get(this.instance.sourceURL + this.instance.apiKey)
-    )
+    await Promise.resolve(axiosInstance.get(this.instance.sourceURL))
       .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
         Flagger.updateConfig(initConfig)
         return this.instance
       })
       .catch(() =>
-        Promise.resolve(
-          axiosInstance.get(
-            this.instance.backupSourceURL + this.instance.apiKey
-          )
-        )
+        Promise.resolve(axiosInstance.get(this.instance.backupSourceURL))
           .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
             Flagger.updateConfig(initConfig)
             return this.instance
@@ -143,7 +137,7 @@ export class Flagger {
       (newConfigurationFromServer: IFlaggerConfiguration) => {
         Flagger.updateConfig(newConfigurationFromServer)
       },
-      `${this.instance.sseURL}${this.instance.apiKey}`
+      `${this.instance.sseURL}`
     )
   }
 
@@ -410,16 +404,26 @@ export class Flagger {
     this.apiKey = apiKey
 
     if (sourceURL) {
-      this.sourceURL = sourceURL
+      this.sourceURL = `${sourceURL}${this.apiKey}`
+    } else {
+      this.sourceURL = `${SOURCE_URL}${this.apiKey}`
     }
+
     if (backupSourceURL) {
-      this.backupSourceURL = backupSourceURL
+      this.backupSourceURL = `${backupSourceURL}${this.apiKey}`
+    } else {
+      this.backupSourceURL = `${BACKUP_SOURCE_URL}${this.apiKey}`
     }
+
     if (sseURL) {
-      this.sseURL = sseURL
+      this.sseURL = `${sseURL}${this.apiKey}`
+    } else {
+      this.sseURL = `${SSE_CONNECTION_URL}${this.apiKey}`
     }
     if (ingestionURL) {
-      this.ingestionURL = ingestionURL
+      this.ingestionURL = `${ingestionURL}${this.apiKey}`
+    } else {
+      this.ingestionURL = `${INGESTION_URL}${this.apiKey}`
     }
   }
 }

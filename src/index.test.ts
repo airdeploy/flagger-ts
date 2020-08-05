@@ -4,7 +4,6 @@ import Flagger from './index'
 import FlaggerConfiguration from './misc/config_example.json'
 
 const api = nock(SOURCE_URL)
-const sourceURL = SOURCE_URL // Flagger.init overrides previous values => must provide sourceURL every init
 
 describe('init function tests', () => {
   it('no apiKey provided test', async () => {
@@ -21,12 +20,10 @@ describe('init function tests', () => {
       .reply(200, FlaggerConfiguration)
 
     await Flagger.init({
-      apiKey,
-      sourceURL
+      apiKey
     })
     await Flagger.init({
-      apiKey,
-      sourceURL
+      apiKey
     })
 
     await Flagger.shutdown()
@@ -44,7 +41,7 @@ describe('init function tests', () => {
     scope.done()
   })
 
-  it('sourceURL is bad, error is thrown', async () => {
+  it('sourceURL & backupSource are bad, error is thrown', async () => {
     const apiKey = 'dad23d23r23'
     const scope = api
       .get('/' + apiKey)
@@ -54,7 +51,6 @@ describe('init function tests', () => {
     await expect(
       Flagger.init({
         apiKey,
-        sourceURL,
         backupSourceURL: SOURCE_URL
       })
     ).rejects.toThrow()
@@ -65,7 +61,7 @@ describe('init function tests', () => {
   it('server is actually called', async () => {
     const apiKey = 'fdsfdsf34f2'
     const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
-    await Flagger.init({apiKey, sourceURL})
+    await Flagger.init({apiKey})
     await Flagger.shutdown()
     scope.done()
   })
@@ -89,7 +85,6 @@ describe('init function tests', () => {
         // backup url is malformed, so that it wont be called
         await Flagger.init({
           apiKey,
-          sourceURL,
           backupSourceURL: SOURCE_URL
         })
       } catch (err) {
@@ -108,7 +103,6 @@ describe('init function tests', () => {
       try {
         await Flagger.init({
           apiKey,
-          sourceURL,
           backupSourceURL: SOURCE_URL
         })
       } catch (err) {
@@ -127,7 +121,6 @@ describe('init function tests', () => {
 
       await Flagger.init({
         apiKey,
-        sourceURL,
         sdkInfo: {name: 'nodejs', version: '0.1.0'}
       })
       Flagger.setEntity({
@@ -148,7 +141,6 @@ describe('init function tests', () => {
 
       await Flagger.init({
         apiKey,
-        sourceURL,
         sdkInfo: {name: 'nodejs', version: '0.1.0'}
       })
       Flagger.setEntity({

@@ -13,7 +13,6 @@ const emptyConfig: IFlaggerConfiguration = emptyConf as IFlaggerConfiguration
 
 const SSE_PORT = 3103
 const apiKey = '12345qwerty'
-const sourceURL = SOURCE_URL // Flagger.init overrides previous values => must provide sourceURL every init
 
 let scope: nock.Scope
 
@@ -46,7 +45,6 @@ describe('sse tests', () => {
     }
     await Flagger.init({
       apiKey,
-      sourceURL,
       sseURL: 'http://localhost:' + SSE_PORT + '/events/'
     })
 
@@ -126,7 +124,6 @@ describe('sse tests', () => {
 
     await Flagger.init({
       apiKey,
-      sourceURL,
       sseURL: 'http://localhost:' + SSE_PORT + '/events/'
     })
 

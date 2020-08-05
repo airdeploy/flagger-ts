@@ -1,7 +1,7 @@
 import Ajv from 'ajv'
 import nock from 'nock'
 import {version} from '../package.json'
-import {SOURCE_URL} from './constants'
+import {INGESTION_URL, SOURCE_URL} from './constants'
 import {axiosInstance} from './Flagger'
 import Flagger from './index'
 import ingestionSchema from './ingester.schema.json'
@@ -18,8 +18,6 @@ const ingestionValidator = ajv.compile(ingestionSchema)
     an opt-in ability to group ingestion data on Front End in SDK
     before send it to the server
 */
-
-export const sourceURL = SOURCE_URL // Flagger.init overrides previous values => must provide sourceURL every init
 const apiKey = '12345qwerty'
 const event = {
   name: 'test',
@@ -52,11 +50,11 @@ const event = {
   timestamp: new Date().toISOString()
 }
 
-const INGESTION_URL = 'http://localhost/track'
 const JS_SDK_NAME = 'js'
 const NODEJS_SDK_NAME = 'nodejs'
-const api = nock('http://localhost')
-const uri = '/track'
+const ingestionUrl = new URL(INGESTION_URL)
+const api = nock(ingestionUrl.origin)
+const uri = ingestionUrl.pathname + apiKey
 const sseURL = 'http://localhost/sse'
 
 let scope: nock.Scope
@@ -77,7 +75,7 @@ describe('ingestion plugin data test', () => {
     it('.track() to events sends data immediately', done => {
       const ingester = new Ingester(
         {name: JS_SDK_NAME, version},
-        INGESTION_URL,
+        INGESTION_URL + apiKey,
         axiosInstance
       )
       const trackCallback = jest.fn(({events}: {events: IEvent[]}) => {
@@ -100,7 +98,7 @@ describe('ingestion plugin data test', () => {
     it('.publish() triggers SDK to send data immediately', done => {
       const ingester = new Ingester(
         {name: JS_SDK_NAME, version},
-        INGESTION_URL,
+        INGESTION_URL + apiKey,
         axiosInstance
       )
 
@@ -141,8 +139,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -172,8 +168,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -204,8 +198,6 @@ describe('ingestion plugin data test', () => {
 
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -236,8 +228,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -262,8 +252,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -306,8 +294,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -342,8 +328,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -394,8 +378,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -451,8 +433,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -497,8 +477,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -517,7 +495,7 @@ describe('ingestion plugin data test', () => {
     it('MAX_CALLS is set to 100 => SDK must send data every 100 calls', done => {
       const ingester = new Ingester(
         {name: NODEJS_SDK_NAME, version},
-        INGESTION_URL,
+        `${INGESTION_URL}${apiKey}`,
         axiosInstance
       )
       const trackCallback = jest.fn(
@@ -563,8 +541,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -591,8 +567,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -618,8 +592,6 @@ describe('ingestion plugin data test', () => {
       })
       Flagger.init({
         apiKey,
-        sourceURL,
-        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       }).then(_ => {
@@ -636,7 +608,7 @@ describe('ingestion plugin data test', () => {
     it('Entity has changed, so ingestion must send latest version of Entity', done => {
       const ingester = new Ingester(
         {name: NODEJS_SDK_NAME, version},
-        INGESTION_URL,
+        `${INGESTION_URL}${apiKey}`,
         axiosInstance
       )
       const trackCallback = jest.fn(
@@ -700,8 +672,6 @@ describe('ingestion plugin data test', () => {
         })
         Flagger.init({
           apiKey,
-          sourceURL,
-          ingestionURL: INGESTION_URL,
           sdkInfo: {name: NODEJS_SDK_NAME, version},
           sseURL
         }).then(_ => {
@@ -735,8 +705,6 @@ describe('ingestion plugin data test', () => {
         })
         Flagger.init({
           apiKey,
-          sourceURL,
-          ingestionURL: INGESTION_URL,
           sdkInfo: {name: NODEJS_SDK_NAME, version},
           sseURL
         }).then(_ => {

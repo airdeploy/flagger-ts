@@ -1,14 +1,13 @@
 import nock from 'nock'
-import {SOURCE_URL} from './constants'
+import {INGESTION_URL, SOURCE_URL} from './constants'
 import Flagger from './index'
 import {IEvent} from './ingester/Interfaces'
 import FlaggerConfiguration from './misc/config_example.json'
 
 const apiKey = '12345qwerty'
-const api = nock('http://localhost')
-const uri = '/track'
-const ingestionURL = 'http://localhost/track'
-const sourceURL = SOURCE_URL // Flagger.init overrides previous values => must provide sourceURL every init
+const ingestionUrl = new URL(INGESTION_URL)
+const api = nock(ingestionUrl.origin)
+const uri = ingestionUrl.pathname + apiKey
 let scope: nock.Scope
 
 beforeAll(() => {
@@ -41,8 +40,6 @@ describe('track tests', () => {
 
     Flagger.init({
       apiKey,
-      sourceURL,
-      ingestionURL,
       sdkInfo: {name: 'js', version: '3.0.0'}
     }).then(__ => {
       Flagger.track(
@@ -73,8 +70,6 @@ describe('track tests', () => {
 
     Flagger.init({
       apiKey,
-      sourceURL,
-      ingestionURL,
       sdkInfo: {name: 'js', version: '3.0.0'}
     }).then(__ => {
       Flagger.setEntity({id})
