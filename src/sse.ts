@@ -62,6 +62,10 @@ export default class SSE {
     this.eventSource.onopen = () => {
       this.updateLastSSEConnectionTime()
     }
+
+    this.eventSource.onerror = (evt: MessageEvent) => {
+      logger.debug('SSE onerror:', evt)
+    }
   }
 
   private updateLastSSEConnectionTime() {
