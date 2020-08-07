@@ -1,7 +1,12 @@
-import EventSource from 'eventsource'
+import eventsource from 'eventsource'
 import {SSE_CONNECTION_URL} from './constants'
 import {Logger} from './Logger/Logger'
 import {IFlaggerConfiguration} from './Types'
+
+const EventSource =
+  typeof window === 'object' && window.EventSource
+    ? window.EventSource
+    : eventsource
 
 const logger = new Logger('SSE')
 
@@ -9,7 +14,7 @@ export default class SSE {
   private callback!: (flagConfig: IFlaggerConfiguration) => void
   private lastSSEConnect!: Date
   private sseConnectionURL = SSE_CONNECTION_URL
-  private eventSource!: EventSource
+  private eventSource!: any
   private sseInterval!: ReturnType<typeof setInterval>
 
   public init(
@@ -33,8 +38,7 @@ export default class SSE {
     clearInterval(this.sseInterval)
     if (this.eventSource) {
       this.eventSource.close()
-      this.eventSource.removeEventListener('flagConfigUpdate')
-      this.eventSource.removeEventListener('keepalive')
+      delete this.eventSource
     }
   }
 
@@ -63,8 +67,9 @@ export default class SSE {
       this.updateLastSSEConnectionTime()
     }
 
-    this.eventSource.onerror = (evt: MessageEvent) => {
+    this.eventSource.onerror = (evt: any) => {
       logger.debug('SSE onerror:', evt)
+      this.connect()
     }
   }
 
