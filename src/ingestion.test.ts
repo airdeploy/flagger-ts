@@ -116,7 +116,8 @@ describe('ingestion plugin data test', () => {
 
       ingester.publish(event.entity)
     })
-    it('flag.isEnabled() triggers SDK to send data immediately', done => {
+    it('flag.isEnabled() triggers SDK to send data in ~250ms', done => {
+      let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
           entities,
@@ -125,6 +126,9 @@ describe('ingestion plugin data test', () => {
           entities: IEntity[]
           exposures: IExposure[]
         }) => {
+          const diff = Date.now() - timestamp
+          expect(diff).toBeGreaterThanOrEqual(200)
+          expect(diff).toBeLessThan(300)
           expect(entities.length).toEqual(1)
           expect(entities[0].id).toEqual(event.entity.id)
           expect(exposures.length).toEqual(1)
@@ -142,10 +146,12 @@ describe('ingestion plugin data test', () => {
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
+        timestamp = Date.now()
         Flagger.isEnabled('flagger', event.entity)
       })
     })
-    it('flag.isSampled() triggers SDK to send data immediately', done => {
+    it('flag.isSampled() triggers SDK to send data in ~250ms', done => {
+      let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
           entities,
@@ -154,6 +160,9 @@ describe('ingestion plugin data test', () => {
           entities: IEntity[]
           exposures: IExposure[]
         }) => {
+          const diff = Date.now() - timestamp
+          expect(diff).toBeGreaterThanOrEqual(200)
+          expect(diff).toBeLessThan(300)
           expect(entities.length).toEqual(1)
           expect(entities[0].id).toEqual(event.entity.id)
           expect(exposures.length).toEqual(1)
@@ -171,10 +180,12 @@ describe('ingestion plugin data test', () => {
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
+        timestamp = Date.now()
         Flagger.isSampled('flagger', event.entity)
       })
     })
-    it('flag.getPayload() triggers SDK to send data immediately', done => {
+    it('flag.getPayload() triggers SDK to send data in ~250ms', done => {
+      let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
           entities,
@@ -183,6 +194,9 @@ describe('ingestion plugin data test', () => {
           entities: IEntity[]
           exposures: IExposure[]
         }) => {
+          const diff = Date.now() - timestamp
+          expect(diff).toBeGreaterThanOrEqual(200)
+          expect(diff).toBeLessThan(300)
           expect(entities.length).toEqual(1)
           expect(entities[0].id).toEqual(event.entity.id)
           expect(exposures.length).toEqual(1)
@@ -201,10 +215,12 @@ describe('ingestion plugin data test', () => {
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
+        timestamp = Date.now()
         Flagger.getPayload('flagger', event.entity)
       })
     })
-    it('flag.getVariation() triggers SDK to send data immediately', done => {
+    it('flag.getVariation() triggers SDK to send data in ~250ms', done => {
+      let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
           entities,
@@ -213,6 +229,9 @@ describe('ingestion plugin data test', () => {
           entities: IEntity[]
           exposures: IExposure[]
         }) => {
+          const diff = Date.now() - timestamp
+          expect(diff).toBeGreaterThanOrEqual(200)
+          expect(diff).toBeLessThan(300)
           expect(entities.length).toEqual(1)
           expect(entities[0].id).toEqual(event.entity.id)
           expect(exposures.length).toEqual(1)
@@ -231,6 +250,7 @@ describe('ingestion plugin data test', () => {
         sdkInfo: {name: JS_SDK_NAME, version},
         sseURL
       }).then(_ => {
+        timestamp = Date.now()
         Flagger.getVariation('flagger', event.entity)
       })
     })

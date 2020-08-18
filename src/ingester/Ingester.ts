@@ -36,10 +36,10 @@ export default class Ingester implements IIngestionInterface {
       sendDataFunction: axiosInstance.post
     })
 
-    // browser has to send ingestion every time to make sure
+    // browser has to send ingestion much more often to make sure
     // data is not lost because user closes a window
     if (sdkInfo.name === 'js' || sdkInfo.name === 'react') {
-      this.ingestionStrategy.setIngestionMaxCall(1)
+      this.ingestionStrategy.setIngestionInterval(250)
     }
   }
 
