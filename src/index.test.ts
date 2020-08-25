@@ -155,3 +155,41 @@ describe('init function tests', () => {
     })
   })
 })
+
+describe('isConfigured() tests', () => {
+  it('returns true after successful initialization', async () => {
+    const apiKey = 'somerandomkey12345'
+    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
+
+    await Flagger.init({apiKey})
+    const configured = Flagger.isConfigured()
+    scope.done()
+
+    expect(configured).toBe(true)
+  })
+
+  it('returns false after shutdown complete', async () => {
+    const apiKey = 'somerandomkey12345'
+    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
+
+    await Flagger.init({apiKey})
+    await Flagger.shutdown()
+    const configured = Flagger.isConfigured()
+    scope.done()
+
+    expect(configured).toBe(false)
+  })
+
+  it('returns false if shutdown is still in progress', async () => {
+    const apiKey = 'somerandomkey12345'
+    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
+
+    await Flagger.init({apiKey})
+    const promise = Flagger.shutdown()
+    const configured = Flagger.isConfigured()
+    await promise
+    scope.done()
+
+    expect(configured).toBe(false)
+  })
+})

@@ -50,7 +50,7 @@ describe('sse tests', () => {
 
     Flagger.addFlaggerConfigUpdateListener(listener)
 
-    const sseConfig = config
+    const sseConfig = JSON.parse(JSON.stringify(config)) // clone
     if (sseConfig.flags) {
       sseConfig.flags[0].codename = newCodename
     }
@@ -67,6 +67,34 @@ describe('sse tests', () => {
     expect(consumed).toBeTruthy()
     await Flagger.shutdown()
     await sseServer.stop()
+  })
+
+  it('does not trigger flagConfigUpdate event if new config is the same as the current one', async () => {
+    const sseServer = new SSEServer<IFlaggerConfiguration>(SSE_PORT)
+    await sseServer.start()
+    const listener = jest.fn()
+    await Flagger.init({
+      apiKey,
+      sseURL: 'http://localhost:' + SSE_PORT + '/events/'
+    })
+
+    Flagger.addFlaggerConfigUpdateListener(listener)
+
+    const sseConfig = config
+
+    // push new data via sse with a delay
+    await wait(() => {
+      sseServer.pushNewData(sseConfig, 'flagConfigUpdate')
+    }, 1000)
+
+    await wait(() => {
+      // wait for the data to be consumed by the flagger
+    }, 1000)
+
+    await Flagger.shutdown()
+    await sseServer.stop()
+
+    expect(listener).not.toBeCalled()
   })
 
   it('KEEPALIVE, should check that connection is open', async () => {

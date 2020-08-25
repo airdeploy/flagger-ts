@@ -20,6 +20,7 @@ import {
   IFlaggerConfiguration,
   ISDKInfo
 } from './Types'
+import {deepEqual} from './utils'
 
 // __SDK_NAME__ is overwritten during compile time to either nodejs or js
 const SDK_INFO = {name: '__SDK_NAME__', version: '__VERSION__'}
@@ -164,7 +165,10 @@ export class Flagger {
   }
 
   public static isConfigured(): boolean {
-    return !!Flagger.instance.apiKey || !!Flagger.instance.flaggerConfiguration
+    return (
+      Boolean(Flagger.instance.apiKey) &&
+      Boolean(Flagger.instance.flaggerConfiguration)
+    )
   }
 
   /*****
@@ -339,37 +343,45 @@ export class Flagger {
    * shutdown ingests data(if any), stop ingester and closes SSE connection.
    */
   public static async shutdown() {
+    let promise = Promise.resolve()
     if (this.instance.sse) {
       this.instance.sse.disconnect()
       this.instance.sse = null
     }
+
     if (this.instance.ingester) {
-      const promise = this.instance.ingester.sendIngestionNow()
+      promise = this.instance.ingester.sendIngestionNow()
       this.instance.ingester = null
-      return promise
     }
-    return Promise.resolve()
+    delete this.instance
+    this.instance = new Flagger()
+    return promise
   }
 
   private static instance: Flagger = new Flagger()
 
   private static updateConfig(config: IFlaggerConfiguration) {
     logger.debug('New FlaggerConfiguration: ', JSON.stringify(config))
-    this.instance.flaggerConfiguration = config
-    this.instance.core.setConfig(config)
-    if (this.instance.ingester) {
-      this.instance.ingester.setIngestionMaxCalls(
-        config.sdkConfig.SDK_INGESTION_MAX_CALLS
-      )
-      this.instance.ingester.setIngestionInterval(
-        config.sdkConfig.SDK_INGESTION_INTERVAL * 1000
+    const shouldUpdate =
+      !this.instance.flaggerConfiguration ||
+      !deepEqual(this.instance.flaggerConfiguration, config)
+    if (shouldUpdate) {
+      this.instance.flaggerConfiguration = config
+      this.instance.core.setConfig(config)
+      if (this.instance.ingester) {
+        this.instance.ingester.setIngestionMaxCalls(
+          config.sdkConfig.SDK_INGESTION_MAX_CALLS
+        )
+        this.instance.ingester.setIngestionInterval(
+          config.sdkConfig.SDK_INGESTION_INTERVAL * 1000
+        )
+      }
+      this.instance.flaggerConfigListeners.forEach(
+        (listener: (config: IFlaggerConfiguration) => void) => {
+          listener(config)
+        }
       )
     }
-    this.instance.flaggerConfigListeners.forEach(
-      (listener: (config: IFlaggerConfiguration) => void) => {
-        listener(config)
-      }
-    )
   }
 
   private flaggerConfiguration!: IFlaggerConfiguration
