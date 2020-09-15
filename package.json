@@ -1,6 +1,6 @@
 {
   "name": "flagger",
-  "version": "3.0.7",
+  "version": "3.0.8",
   "description": "An open source JavaScript SDK for feature flagging (feature gating, feature toggles) for Node.js and Javascript applications",
   "main": "dist/index.cjs.js",
   "module": "dist/index.es.js",
@@ -55,7 +55,6 @@
     "tslib": "^1.9.3",
     "tslint": "^5.16.0",
     "tslint-config-prettier": "^1.18.0",
-    "typedoc": "^0.14.2",
     "typescript": "^3.2.2"
   },
   "author": "engineering@airdeploy.io",
