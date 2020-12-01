@@ -2,13 +2,11 @@
 .vscode
 coverage
 node_modules/
-examples/
-src/
+examples/nodejs/node_modules/
 .gitignore
 .prettierignore
 .prettierrc
 jest.config.js
-jest.setup.js
 rollup.config.js
 tsconfig.json
 tslint.json

@@ -1,84 +1,82 @@
+import {SSEServer} from 'mock-sse-server'
 import nock from 'nock'
 import {INGESTION_URL, SOURCE_URL} from './constants'
 import Flagger from './index'
-import {IEvent} from './ingester/Interfaces'
 import FlaggerConfiguration from './misc/config_example.json'
+import Mock = jest.Mock
+import {IFlaggerConfiguration} from './Types'
 
-const apiKey = '12345qwerty'
+const apiKey = 'testApiKey'
+
+const SSE_PORT = 3103
+const sseURL = `http://localhost:${SSE_PORT}/events/`
+const sdkInfo = {name: 'js', version: '3.0.0'}
+
 const ingestionUrl = new URL(INGESTION_URL)
-const api = nock(ingestionUrl.origin)
-const uri = ingestionUrl.pathname + apiKey
-let scope: nock.Scope
-
-beforeAll(() => {
-  scope = nock(SOURCE_URL)
-    .get('/' + apiKey)
-    .reply(200, FlaggerConfiguration)
-    .persist(true)
-})
-
-afterAll(() => {
-  scope.persist(false)
-})
+const ingestionScope = nock(ingestionUrl.origin)
+const ingestionPathname = ingestionUrl.pathname + apiKey
 
 describe('track tests', () => {
+  let sseServer: SSEServer<IFlaggerConfiguration>
+  let ingestionCallback: Mock
+
   const id = Math.floor(Math.random() * Math.floor(100)).toString()
 
-  it('track event with manually added entity', done => {
-    const trackCallback = jest.fn(({events}: {events: IEvent[]}) => {
-      expect(events[0].entity).not.toEqual(null)
-      if (events[0].entity) {
-        expect(events[0].entity.id).toEqual(id)
-      }
-      Flagger.shutdown().then(_ => {
-        done()
-      })
-    })
-    api.post(uri).reply(200, (_, body: any) => {
-      trackCallback({events: body.events})
+  beforeEach(async () => {
+    sseServer = new SSEServer<IFlaggerConfiguration>(SSE_PORT)
+    await sseServer.start()
+
+    ingestionCallback = jest.fn()
+    ingestionScope.post(ingestionPathname).reply(200, (_, body: any) => {
+      ingestionCallback(body)
     })
 
-    Flagger.init({
+    nock(SOURCE_URL)
+      .get('/' + apiKey)
+      .reply(200, FlaggerConfiguration)
+
+    await Flagger.init({
       apiKey,
-      sdkInfo: {name: 'js', version: '3.0.0'}
-    }).then(__ => {
-      Flagger.track(
-        'Purchase Completed',
-        {
-          plan: 'Bronze',
-          referrer: 'www.Google.com',
-          shirt_size: 'medium'
-        },
-        {id}
-      )
+      sdkInfo,
+      sseURL
     })
   })
-  it('track event with entity set before', done => {
-    const trackCallback = jest.fn(({events}: {events: IEvent[]}) => {
-      expect(events[0].entity).not.toEqual(null)
-      if (events[0].entity) {
-        expect(events[0].entity.id).toEqual(id)
-      }
-      Flagger.shutdown().then(_ => {
-        done()
-      })
-    })
 
-    api.post(uri).reply(200, (_, body: any) => {
-      trackCallback({events: body.events})
-    })
+  afterEach(async () => {
+    await sseServer.stop()
+  })
 
-    Flagger.init({
-      apiKey,
-      sdkInfo: {name: 'js', version: '3.0.0'}
-    }).then(__ => {
-      Flagger.setEntity({id})
-
-      Flagger.track('Purchase Completed', {
-        plan: 'Gold',
+  it('track event with entity', async () => {
+    Flagger.track(
+      'Purchase Completed',
+      {
+        plan: 'Bronze',
         referrer: 'www.Google.com',
         shirt_size: 'medium'
-      })
+      },
+      {id}
+    )
+    await Flagger.shutdown()
+    expect(ingestionCallback).toBeCalledTimes(1)
+    expect(ingestionCallback.mock.calls[0][0].events.length).toEqual(1)
+    expect(ingestionCallback.mock.calls[0][0].events[0].entity).not.toEqual(
+      null
+    )
+    expect(ingestionCallback.mock.calls[0][0].events[0].entity.id).toEqual(id)
+  })
+  it('track event with entity set before', async () => {
+    Flagger.setEntity({id})
+
+    Flagger.track('Purchase Completed', {
+      plan: 'Gold',
+      referrer: 'www.Google.com',
+      shirt_size: 'medium'
     })
+    await Flagger.shutdown()
+
+    expect(ingestionCallback).toBeCalledTimes(1)
+    expect(ingestionCallback.mock.calls[0][0].events.length).toEqual(1)
+    expect(ingestionCallback.mock.calls[0][0].events[0].entity).toBeTruthy()
+    expect(ingestionCallback.mock.calls[0][0].events[0].entity.id).toEqual(id)
   })
 })

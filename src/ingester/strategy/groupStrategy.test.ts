@@ -1,8 +1,8 @@
 // tslint:disable: object-literal-sort-keys
 import axios from 'axios'
 import nock from 'nock'
-import {IEvent} from '../Interfaces'
 import GroupStrategy from './groupStrategy'
+
 const api = nock('http://localhost')
 const uri = '/track'
 const ingestionURL = 'http://localhost/track'
@@ -26,18 +26,63 @@ describe('Group ingestion Strategy tests', () => {
     sdkInfo: {name: 'js', version: '0.1.0'}
   }
 
-  it('ingest 500 times to api', done => {
+  const ingestionDataDetectedFlag = {
+    id: '92e9adb3-080d-4dc1-8050-4cda1169df4d',
+    entities: [
+      {
+        id: '1',
+        type: 'User',
+        group: {id: '4242', type: 'company', attributes: {id: '4242'}},
+        attributes: {id: '1'}
+      }
+    ],
+    exposures: [
+      {
+        codename: 'example-flags',
+        variation: 'off',
+        entity: {
+          id: '1',
+          type: 'User',
+          group: {id: '4242', type: 'company', attributes: {id: '4242'}},
+          attributes: {id: '1'}
+        },
+        methodCalled: 'isEnabled',
+        timestamp: '2020-11-06T11:16:55.846381+02:00'
+      }
+    ],
+    events: [],
+    sdkInfo: {name: 'js', version: '3.0.1'},
+    detectedFlag: 'example-flags'
+  }
+
+  const sdkInfo = {name: 'nodejs', version: '0.1.0'}
+  it('sends ingestion with detected flags without delay', async () => {
     const strategy = new GroupStrategy({
       ingestionURL,
-      sdkInfo: {name: 'nodejs', version: '0.1.0'},
+      sdkInfo,
       sendDataFunction: axios.post
     })
-    const trackCallback = jest.fn(({events}: {events: IEvent[]}) => {
-      expect(events.length).toEqual(500)
-      strategy.sendIngestionNow().then(_ => {
-        done()
-      })
+
+    const trackCallback = jest.fn()
+
+    api.post(uri).reply(200, (_, body: any) => {
+      trackCallback({detectedFlags: body.detectedFlags})
     })
+
+    strategy.ingest(ingestionDataDetectedFlag)
+
+    await strategy.sendIngestionNow()
+
+    expect(trackCallback).toBeCalledTimes(1)
+  })
+
+  it('ingest 500 times to api', async () => {
+    const strategy = new GroupStrategy({
+      ingestionURL,
+      sdkInfo,
+      sendDataFunction: axios.post
+    })
+    const trackCallback = jest.fn()
 
     for (let i = 0; i < 500; i++) {
       strategy.ingest(ingestionData)
@@ -46,6 +91,10 @@ describe('Group ingestion Strategy tests', () => {
     api.post(uri).reply(200, (_, body: any) => {
       trackCallback({events: body.events})
     })
+
+    await strategy.sendIngestionNow()
+    expect(trackCallback).toBeCalledTimes(1)
+    expect(trackCallback.mock.calls[0][0].events.length).toBe(500)
   })
 
   it('Check interval is working properly', done => {
@@ -58,7 +107,8 @@ describe('Group ingestion Strategy tests', () => {
       sendDataFunction: () => {
         count++
         return Promise.resolve()
-      }
+      },
+      sendFirstExposuresThreshold: 0
     })
 
     // simulating ingestion
@@ -122,7 +172,7 @@ describe('Group ingestion Strategy tests', () => {
     }, 1000)
   })
 
-  it('group entity by id and type', done => {
+  it('group entity by id and type', async () => {
     let count = 0
     let sentData: any
     const strategy = new GroupStrategy({
@@ -133,7 +183,8 @@ describe('Group ingestion Strategy tests', () => {
         count++
         sentData = data
         return Promise.resolve()
-      }
+      },
+      sendFirstExposuresThreshold: 1000
     })
 
     strategy.ingest({
@@ -150,12 +201,9 @@ describe('Group ingestion Strategy tests', () => {
       events: []
     })
 
-    setTimeout(() => {
-      expect(count).toEqual(1)
-      expect(sentData.entities.length).toEqual(2)
-      strategy.sendIngestionNow().then(_ => {
-        done()
-      })
-    }, 1000)
+    await strategy.sendIngestionNow()
+
+    expect(count).toEqual(1)
+    expect(sentData.entities.length).toEqual(2)
   })
 })

@@ -18,6 +18,8 @@ export default class GroupStrategy implements IIngestionStrategy {
   private readonly ingestionURL: string
   private readonly sdkInfo: ISDKInfo
   private readonly retryPolicy = new RetryPolicy<any>()
+  private sendFirstExposuresThreshold: number
+  private exposureCounter = 0
   private callCounter = 0
   private ingestionTimer: ReturnType<typeof setTimeout>
 
@@ -33,7 +35,8 @@ export default class GroupStrategy implements IIngestionStrategy {
     ingestionMaxCalls,
     ingestionIntervalInMilliseconds,
     sdkInfo,
-    sendDataFunction
+    sendDataFunction,
+    sendFirstExposuresThreshold = 10
   }: {
     ingestionURL: string
     retries?: number
@@ -41,10 +44,12 @@ export default class GroupStrategy implements IIngestionStrategy {
     ingestionIntervalInMilliseconds?: number
     sdkInfo: ISDKInfo
     sendDataFunction: (url: string, data: any) => Promise<any>
+    sendFirstExposuresThreshold?: number
   }) {
     this.ingestionURL = ingestionURL
     this.sdkInfo = sdkInfo
     this.sendDataFunction = sendDataFunction
+    this.sendFirstExposuresThreshold = sendFirstExposuresThreshold
 
     if (ingestionMaxCalls) {
       this.ingestionMaxCalls = ingestionMaxCalls
@@ -76,6 +81,9 @@ export default class GroupStrategy implements IIngestionStrategy {
     if (data.exposures) {
       data.exposures.forEach((exposure: IExposure) => {
         this.exposures.push(exposure)
+        if (this.exposureCounter <= this.sendFirstExposuresThreshold) {
+          this.exposureCounter++
+        }
       })
     }
 
@@ -85,7 +93,7 @@ export default class GroupStrategy implements IIngestionStrategy {
 
     this.callCounter++
 
-    if (this.shouldSendData()) {
+    if (this.shouldSendData(data)) {
       this.sendData().catch(err => {
         logger.warn('Ingestion error: ', err)
       })
@@ -129,6 +137,10 @@ export default class GroupStrategy implements IIngestionStrategy {
     }
   }
 
+  public setSendFirstExposuresThreshold(threshold: number) {
+    this.sendFirstExposuresThreshold = threshold
+  }
+
   private async sendData() {
     // do not sent empty ingestion requests
     if (this.isEmpty()) {
@@ -159,8 +171,20 @@ export default class GroupStrategy implements IIngestionStrategy {
     return this.ingestionPromise
   }
 
-  private shouldSendData(): boolean {
-    return this.callCounter >= this.ingestionMaxCalls
+  /**
+   * Rules to send ingestion data:
+   * - ingester is full
+   * - flagger has detected a flag which is not in config
+   * - first 10 exposures are always ingested
+   */
+  private shouldSendData(data: IIngestionData) {
+    return (
+      this.callCounter >= this.ingestionMaxCalls ||
+      data.detectedFlag ||
+      (data.exposures &&
+        data.exposures.length > 0 &&
+        this.exposureCounter <= this.sendFirstExposuresThreshold)
+    )
   }
 
   private isEmpty(): boolean {

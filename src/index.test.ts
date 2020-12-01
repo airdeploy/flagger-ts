@@ -1,9 +1,20 @@
 import nock from 'nock'
-import {SOURCE_URL} from './constants'
+import {INGESTION_URL, SOURCE_URL} from './constants'
 import Flagger from './index'
 import FlaggerConfiguration from './misc/config_example.json'
 
-const api = nock(SOURCE_URL)
+const apiKey = 'testApiKey'
+
+const SSE_PORT = 3103
+const sseURL = `http://localhost:${SSE_PORT}/events/`
+
+const flagConfigURL = new URL(SOURCE_URL)
+const flagConfigScope = nock(flagConfigURL.origin)
+const flagConfigPathname = flagConfigURL.pathname + apiKey
+
+const ingestionUrl = new URL(INGESTION_URL)
+const ingestionScope = nock(ingestionUrl.origin)
+const ingestionPathname = ingestionUrl.pathname + apiKey
 
 describe('init function tests', () => {
   it('no apiKey provided test', async () => {
@@ -13,17 +24,18 @@ describe('init function tests', () => {
   })
 
   it('Multiple calls of init check', async () => {
-    const apiKey = 'fdsfsddds'
-    const scope = api
-      .get('/' + apiKey)
+    const scope = flagConfigScope
+      .get(flagConfigPathname)
       .twice()
       .reply(200, FlaggerConfiguration)
 
     await Flagger.init({
-      apiKey
+      apiKey,
+      sseURL
     })
     await Flagger.init({
-      apiKey
+      apiKey,
+      sseURL
     })
 
     await Flagger.shutdown()
@@ -32,9 +44,10 @@ describe('init function tests', () => {
   })
 
   it('multiple calls of shutdown check', async () => {
-    const apiKey = 'somerandomkey12345'
-    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
-    await Flagger.init({apiKey})
+    const scope = flagConfigScope
+      .get(flagConfigPathname)
+      .reply(200, FlaggerConfiguration)
+    await Flagger.init({apiKey, sseURL})
     await Flagger.shutdown()
     await Flagger.shutdown()
     await Flagger.shutdown()
@@ -42,9 +55,8 @@ describe('init function tests', () => {
   })
 
   it('sourceURL & backupSource are bad, error is thrown', async () => {
-    const apiKey = 'dad23d23r23'
-    const scope = api
-      .get('/' + apiKey)
+    const scope = flagConfigScope
+      .get(flagConfigPathname)
       .times(6)
       .reply(500)
 
@@ -59,25 +71,24 @@ describe('init function tests', () => {
   })
 
   it('server is actually called', async () => {
-    const apiKey = 'fdsfdsf34f2'
-    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
-    await Flagger.init({apiKey})
+    const scope = flagConfigScope
+      .get(flagConfigPathname)
+      .reply(200, FlaggerConfiguration)
+    await Flagger.init({apiKey, sseURL})
     await Flagger.shutdown()
     scope.done()
   })
 
   describe('backupURL tests', () => {
     it('should retry sourceURL 3 times', async () => {
-      const apiKey = 'fdsf23f2'
-      const uri = '/' + apiKey
       const callback = jest.fn()
-      const scope = api
-        .get(uri)
+      const scope = flagConfigScope
+        .get(flagConfigPathname)
         .thrice()
         .reply(500, callback)
 
-      api
-        .get(uri)
+      flagConfigScope
+        .get(flagConfigPathname)
         .thrice()
         .reply(500)
 
@@ -85,6 +96,7 @@ describe('init function tests', () => {
         // backup url is malformed, so that it wont be called
         await Flagger.init({
           apiKey,
+          sseURL,
           backupSourceURL: SOURCE_URL
         })
       } catch (err) {
@@ -94,10 +106,9 @@ describe('init function tests', () => {
       }
     })
     it('should retry sourceURL 3 times and fallback to backupSourceURL', async () => {
-      const apiKey = 'h5h455'
       const callback = jest.fn()
-      const scope = api
-        .get('/' + apiKey)
+      const scope = flagConfigScope
+        .get(flagConfigPathname)
         .times(6)
         .reply(500, callback)
       try {
@@ -116,28 +127,38 @@ describe('init function tests', () => {
 
   describe('flag tests', () => {
     it('flag isEnabled should be true', async () => {
-      const apiKey = 'g35g2g'
-      const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
+      ingestionScope
+        .post(ingestionPathname)
+        .twice()
+        .reply(200)
+
+      const scope = flagConfigScope
+        .get(flagConfigPathname)
+        .reply(200, FlaggerConfiguration)
 
       await Flagger.init({
         apiKey,
-        sdkInfo: {name: 'nodejs', version: '0.1.0'}
+        sdkInfo: {name: 'nodejs', version: '0.1.0'},
+        sseURL
       })
+
       Flagger.setEntity({
         // tslint:disable-next-line: object-literal-sort-keys
         id: '3423',
         type: 'User',
         attributes: {country: 'Japan'}
       })
-      expect(Flagger.isEnabled('new-signup-flow')).toEqual(true)
+      expect(Flagger.isEnabled('new-signup-flow')).toBeTruthy()
       await Flagger.shutdown()
       scope.done()
-      nock.cleanAll()
     })
 
     it('flag isSampled should be true', async () => {
-      const apiKey = 'revv3v23h'
-      const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
+      ingestionScope.post(ingestionPathname).reply(200)
+
+      const scope = flagConfigScope
+        .get(flagConfigPathname)
+        .reply(200, FlaggerConfiguration)
 
       await Flagger.init({
         apiKey,
@@ -157,39 +178,36 @@ describe('init function tests', () => {
 })
 
 describe('isConfigured() tests', () => {
-  it('returns true after successful initialization', async () => {
-    const apiKey = 'somerandomkey12345'
-    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
+  let scope: nock.Scope
 
+  beforeEach(() => {
+    scope = flagConfigScope
+      .get(flagConfigPathname)
+      .reply(200, FlaggerConfiguration)
+  })
+
+  afterEach(() => {
+    scope.done()
+  })
+
+  it('returns true after successful initialization', async () => {
     await Flagger.init({apiKey})
     const configured = Flagger.isConfigured()
-    scope.done()
-
     expect(configured).toBe(true)
   })
 
   it('returns false after shutdown complete', async () => {
-    const apiKey = 'somerandomkey12345'
-    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
-
     await Flagger.init({apiKey})
     await Flagger.shutdown()
     const configured = Flagger.isConfigured()
-    scope.done()
-
     expect(configured).toBe(false)
   })
 
   it('returns false if shutdown is still in progress', async () => {
-    const apiKey = 'somerandomkey12345'
-    const scope = api.get('/' + apiKey).reply(200, FlaggerConfiguration)
-
     await Flagger.init({apiKey})
     const promise = Flagger.shutdown()
     const configured = Flagger.isConfigured()
     await promise
-    scope.done()
-
     expect(configured).toBe(false)
   })
 })

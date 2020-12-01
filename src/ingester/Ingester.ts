@@ -23,7 +23,8 @@ export default class Ingester implements IIngestionInterface {
   constructor(
     sdkInfo: ISDKInfo,
     ingestionURL: string,
-    axiosInstance: AxiosInstance
+    axiosInstance: AxiosInstance,
+    sendFirstExposuresThreshold: number = 10
   ) {
     this.sdkInfo = sdkInfo
     this.ingestionURL = ingestionURL
@@ -33,12 +34,14 @@ export default class Ingester implements IIngestionInterface {
     this.ingestionStrategy = new GroupStrategy({
       ingestionURL: this.ingestionURL,
       sdkInfo,
-      sendDataFunction: axiosInstance.post
+      sendDataFunction: axiosInstance.post,
+      sendFirstExposuresThreshold
     })
 
     // browser has to send ingestion much more often to make sure
     // data is not lost because user closes a window
     if (sdkInfo.name === 'js' || sdkInfo.name === 'react') {
+      this.ingestionStrategy.setSendFirstExposuresThreshold(0)
       this.ingestionStrategy.setIngestionInterval(250)
     }
   }
@@ -98,13 +101,12 @@ export default class Ingester implements IIngestionInterface {
       return
     }
 
-    let entities: IEntity[]
+    let entities: IEntity[] = []
     if (event.entity) {
       entities = [event.entity]
     } else if (this.entity) {
       entities = [this.entity]
-    } else {
-      entities = []
+      event.entity = this.entity
     }
 
     return this.ingestionStrategy.ingest({

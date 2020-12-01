@@ -7,6 +7,14 @@ export const wait = (fn: () => void, timeout: number) => {
   })
 }
 
+export const waitTime = async (milliseconds: number) => {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve()
+    }, milliseconds)
+  })
+}
+
 export const deepEqual = (a: any, b: any): boolean => {
   const aType = typeof a
   const bType = typeof b
