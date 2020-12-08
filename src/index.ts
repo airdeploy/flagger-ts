@@ -1,6 +1,6 @@
 import {Core, Reason} from './Core'
-import {Flagger} from './Flagger'
-import {Logger} from './Logger/Logger'
+import {flagger as Flagger, FlaggerClass} from './Flagger'
+import {Logger, LogLevel} from './Logger/Logger'
 import {IEntity} from './Types'
 export default Flagger
-export {Core, Reason, Flagger, Logger, IEntity}
+export {Core, Reason, Flagger, FlaggerClass, Logger, LogLevel, IEntity}

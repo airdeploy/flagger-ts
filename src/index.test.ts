@@ -1,6 +1,6 @@
 import nock from 'nock'
 import {INGESTION_URL, SOURCE_URL} from './constants'
-import Flagger from './index'
+import Flagger, {FlaggerClass} from './index'
 import FlaggerConfiguration from './misc/config_example.json'
 
 const apiKey = 'testApiKey'
@@ -172,6 +172,55 @@ describe('init function tests', () => {
       })
       expect(Flagger.isSampled('new-signup-flow')).toEqual(true)
       await Flagger.shutdown()
+      scope.done()
+    })
+  })
+
+  describe('Multiple instances of flagger', () => {
+    it("default instance doesn't affect manually created one", async () => {
+      const scope = flagConfigScope
+        .get(flagConfigPathname)
+        .reply(200, FlaggerConfiguration)
+
+      const f1 = new FlaggerClass()
+      const f2 = new FlaggerClass()
+
+      await f1.init({apiKey, sseURL})
+      await Flagger.shutdown()
+
+      expect(f1.isConfigured()).toBe(true)
+      expect(f2.isConfigured()).toBe(false)
+      expect(Flagger.isConfigured()).toBe(false)
+
+      await f1.shutdown()
+
+      expect(f1.isConfigured()).toBe(false)
+      expect(f2.isConfigured()).toBe(false)
+      expect(Flagger.isConfigured()).toBe(false)
+      scope.done()
+    })
+
+    it("calling shutdown on manually created instance doesn't affect default", async () => {
+      const scope = flagConfigScope
+        .get(flagConfigPathname)
+        .reply(200, FlaggerConfiguration)
+
+      await Flagger.init({apiKey, sseURL})
+      const f1 = new FlaggerClass()
+
+      expect(Flagger.isConfigured()).toBe(true)
+      expect(f1.isConfigured()).toBe(false)
+
+      await f1.shutdown()
+
+      expect(Flagger.isConfigured()).toBe(true)
+      expect(f1.isConfigured()).toBe(false)
+
+      await Flagger.shutdown()
+
+      expect(Flagger.isConfigured()).toBe(false)
+      expect(f1.isConfigured()).toBe(false)
+
       scope.done()
     })
   })

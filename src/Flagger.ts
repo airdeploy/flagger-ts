@@ -11,7 +11,7 @@ import {
 } from './constants'
 import {Core} from './Core'
 import Ingester from './ingester/Ingester'
-import {Logger} from './Logger/Logger'
+import {Logger, LogLevel} from './Logger/Logger'
 import SSE from './sse'
 import {
   escapeEntity,
@@ -53,7 +53,19 @@ axiosRetry(axiosInstance, {retries: DEFAULT_NUMBER_OF_RETRIES})
 
 const logger = new Logger('Flagger')
 
-export class Flagger {
+export class FlaggerClass {
+  private flaggerConfiguration!: IFlaggerConfiguration
+  private sourceURL: string = SOURCE_URL
+  private backupSourceURL: string = BACKUP_SOURCE_URL
+  private sseURL: string = SSE_CONNECTION_URL
+  private ingestionURL: string = INGESTION_URL
+  private core: Core = new Core()
+  private sse!: SSE | null
+  private ingester!: Ingester | null
+  private apiKey!: string
+  private flaggerConfigListeners: Array<
+    (config: IFlaggerConfiguration) => void
+  > = []
   /*****
    * init method gets FlaggerConfiguration, establishes and maintains SSE
    * connections and initializes Ingester
@@ -66,7 +78,7 @@ export class Flagger {
    * level and includes all network requests
    * @param sdkInfo - for test purposes
    */
-  public static async init({
+  public async init({
     apiKey,
     sourceURL,
     backupSourceURL,
@@ -80,7 +92,7 @@ export class Flagger {
     backupSourceURL?: string
     sseURL?: string
     ingestionURL?: string
-    logLevel?: 'warn' | 'warning' | 'deb' | 'debug' | 'err' | 'error'
+    logLevel?: LogLevel
     sdkInfo?: ISDKInfo
   }) {
     if (!apiKey) {
@@ -89,12 +101,12 @@ export class Flagger {
     }
 
     if (logLevel) {
-      Logger.LOG_LEVEL = Logger.parseLevel(logLevel)
+      Logger.LOG_LEVEL = logLevel
     }
 
     await this.shutdown()
 
-    this.instance.updateFlaggerInstance(
+    this.updateFlaggerInstance(
       apiKey,
       sourceURL,
       backupSourceURL,
@@ -111,64 +123,54 @@ export class Flagger {
       axiosInstance.defaults.headers.get = {'Accept-Encoding': 'gzip, deflate'}
     }
 
-    this.instance.ingester = new Ingester(
-      localSDKInfo,
-      this.instance.ingestionURL,
-      axiosInstance
-    )
+    this.ingester = new Ingester(localSDKInfo, this.ingestionURL, axiosInstance)
 
-    await Promise.resolve(axiosInstance.get(this.instance.sourceURL))
+    await Promise.resolve(axiosInstance.get(this.sourceURL))
       .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
-        Flagger.updateConfig(initConfig)
-        return this.instance
+        this.updateConfig(initConfig)
+        return this
       })
       .catch(() =>
-        Promise.resolve(axiosInstance.get(this.instance.backupSourceURL))
+        Promise.resolve(axiosInstance.get(this.backupSourceURL))
           .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
-            Flagger.updateConfig(initConfig)
-            return this.instance
+            this.updateConfig(initConfig)
+            return this
           })
           .catch(err => {
             throw err
           })
       )
 
-    this.instance.sse = new SSE()
-    this.instance.sse.init(
-      (newConfigurationFromServer: IFlaggerConfiguration) => {
-        Flagger.updateConfig(newConfigurationFromServer)
-      },
-      `${this.instance.sseURL}`
-    )
+    this.sse = new SSE()
+    this.sse.init((newConfigurationFromServer: IFlaggerConfiguration) => {
+      this.updateConfig(newConfigurationFromServer)
+    }, `${this.sseURL}`)
   }
 
   /*****
    * Add a listener to subscribe to event when Flagger gets new FlaggerConfiguration
    * @param listener
    */
-  public static addFlaggerConfigUpdateListener(
+  public addFlaggerConfigUpdateListener(
     listener: (config: IFlaggerConfiguration) => void
   ): void {
-    Flagger.instance.flaggerConfigListeners.push(listener)
+    this.flaggerConfigListeners.push(listener)
   }
 
   /*****
    * Removes a listener
    * @param listener
    */
-  public static removeFlaggerConfigUpdateListener(
+  public removeFlaggerConfigUpdateListener(
     listener: (config: IFlaggerConfiguration) => void
   ): void {
-    Flagger.instance.flaggerConfigListeners = Flagger.instance.flaggerConfigListeners.filter(
-      l => l !== listener
+    this.flaggerConfigListeners = this.flaggerConfigListeners.filter(
+      (l: any) => l !== listener
     )
   }
 
-  public static isConfigured(): boolean {
-    return (
-      Boolean(Flagger.instance.apiKey) &&
-      Boolean(Flagger.instance.flaggerConfiguration)
-    )
+  public isConfigured(): boolean {
+    return Boolean(this.apiKey) && Boolean(this.flaggerConfiguration)
   }
 
   /*****
@@ -176,15 +178,12 @@ export class Flagger {
    * @param codename
    * @param entity
    */
-  public static isEnabled(codename: string, entity?: IEntity): boolean {
+  public isEnabled(codename: string, entity?: IEntity): boolean {
     entity = escapeEntity(entity)
-    const flagResult = this.instance.core.evaluateFlagProperties(
-      codename,
-      entity
-    )
+    const flagResult = this.core.evaluateFlagProperties(codename, entity)
     logger.debug(JSON.stringify(flagResult))
-    if (this.instance.ingester) {
-      this.instance.ingester.ingestExposure(
+    if (this.ingester) {
+      this.ingester.ingestExposure(
         'isEnabled',
         codename,
         flagResult.variation.codename,
@@ -202,15 +201,12 @@ export class Flagger {
    * @param codename
    * @param entity
    */
-  public static isSampled(codename: string, entity?: IEntity): boolean {
+  public isSampled(codename: string, entity?: IEntity): boolean {
     entity = escapeEntity(entity)
-    const flagResult = this.instance.core.evaluateFlagProperties(
-      codename,
-      entity
-    )
+    const flagResult = this.core.evaluateFlagProperties(codename, entity)
     logger.debug(JSON.stringify(flagResult))
-    if (this.instance.ingester) {
-      this.instance.ingester.ingestExposure(
+    if (this.ingester) {
+      this.ingester.ingestExposure(
         'isSampled',
         codename,
         flagResult.variation.codename,
@@ -228,15 +224,12 @@ export class Flagger {
    * @param codename
    * @param entity
    */
-  public static getVariation(codename: string, entity?: IEntity): string {
+  public getVariation(codename: string, entity?: IEntity): string {
     entity = escapeEntity(entity)
-    const flagResult = this.instance.core.evaluateFlagProperties(
-      codename,
-      entity
-    )
+    const flagResult = this.core.evaluateFlagProperties(codename, entity)
     logger.debug(JSON.stringify(flagResult))
-    if (this.instance.ingester) {
-      this.instance.ingester.ingestExposure(
+    if (this.ingester) {
+      this.ingester.ingestExposure(
         'getVariation',
         codename,
         flagResult.variation.codename,
@@ -254,15 +247,12 @@ export class Flagger {
    * @param codename
    * @param entity
    */
-  public static getPayload(codename: string, entity?: IEntity): {} {
+  public getPayload(codename: string, entity?: IEntity): {} {
     entity = escapeEntity(entity)
-    const flagResult = this.instance.core.evaluateFlagProperties(
-      codename,
-      entity
-    )
+    const flagResult = this.core.evaluateFlagProperties(codename, entity)
     logger.debug(JSON.stringify(flagResult))
-    if (this.instance.ingester) {
-      this.instance.ingester.ingestExposure(
+    if (this.ingester) {
+      this.ingester.ingestExposure(
         'getPayload',
         codename,
         flagResult.variation.codename,
@@ -279,7 +269,7 @@ export class Flagger {
    * Explicitly notify server about an Entity
    * @param entity
    */
-  public static publish(entity: IEntity): void {
+  public publish(entity: IEntity): void {
     const e = escapeEntity(entity)
     if (!e) {
       logger.warn('Could not publish because entity is empty')
@@ -289,8 +279,8 @@ export class Flagger {
       logger.warn('Could not publish because entity.id is empty')
       return
     }
-    if (this.instance.ingester) {
-      this.instance.ingester.publish(e)
+    if (this.ingester) {
+      this.ingester.publish(e)
     }
   }
 
@@ -300,18 +290,14 @@ export class Flagger {
    * @param properties
    * @param entity
    */
-  public static track(
-    name: string,
-    properties: IAttributes,
-    entity?: IEntity
-  ): void {
+  public track(name: string, properties: IAttributes, entity?: IEntity): void {
     if (entity && !entity.id) {
       logger.warn('Could not track because entity.id is empty')
       return
     }
     entity = escapeEntity(entity)
-    if (this.instance.ingester) {
-      this.instance.ingester.track({
+    if (this.ingester) {
+      this.ingester.track({
         name,
         properties,
         entity,
@@ -326,84 +312,60 @@ export class Flagger {
    * send null to reset Flagger to default Entity-state
    * @param entity
    */
-  public static setEntity(entity?: IEntity): void {
+  public setEntity(entity?: IEntity): void {
     if (entity && !entity.id) {
       logger.warn('Could not setEntity because id is empty, entity: ', entity)
       return
     }
 
     entity = escapeEntity(entity)
-    this.instance.core.setEntity(entity)
-    if (this.instance.ingester) {
-      this.instance.ingester.setEntity(entity)
+    this.core.setEntity(entity)
+    if (this.ingester) {
+      this.ingester.setEntity(entity)
     }
   }
 
   /*****
    * shutdown ingests data(if any), stop ingester and closes SSE connection.
    */
-  public static async shutdown() {
+  public async shutdown() {
     let promise = Promise.resolve()
-    if (this.instance.sse) {
-      this.instance.sse.disconnect()
-      this.instance.sse = null
+    if (this.sse) {
+      this.sse.shutdown()
+      this.sse = null
     }
 
-    if (this.instance.ingester) {
-      promise = this.instance.ingester.sendIngestionNow()
-      this.instance.ingester = null
+    if (this.ingester) {
+      promise = this.ingester.sendIngestionNow()
+      this.ingester = null
     }
-    delete this.instance
-    this.instance = new Flagger()
+    delete this.flaggerConfiguration
+    delete this.apiKey
     return promise
   }
 
-  private static instance: Flagger = new Flagger()
-
-  private static updateConfig(config: IFlaggerConfiguration) {
+  private updateConfig(config: IFlaggerConfiguration) {
     logger.debug('New FlaggerConfiguration: ', JSON.stringify(config))
     const shouldUpdate =
-      !this.instance.flaggerConfiguration ||
-      !deepEqual(this.instance.flaggerConfiguration, config)
+      !this.flaggerConfiguration ||
+      !deepEqual(this.flaggerConfiguration, config)
     if (shouldUpdate) {
-      this.instance.flaggerConfiguration = config
-      this.instance.core.setConfig(config)
-      if (this.instance.ingester) {
-        this.instance.ingester.setIngestionMaxCalls(
+      this.flaggerConfiguration = config
+      this.core.setConfig(config)
+      if (this.ingester) {
+        this.ingester.setIngestionMaxCalls(
           config.sdkConfig.SDK_INGESTION_MAX_CALLS
         )
-        this.instance.ingester.setIngestionInterval(
+        this.ingester.setIngestionInterval(
           config.sdkConfig.SDK_INGESTION_INTERVAL * 1000
         )
       }
-      this.instance.flaggerConfigListeners.forEach(
+      this.flaggerConfigListeners.forEach(
         (listener: (config: IFlaggerConfiguration) => void) => {
           listener(config)
         }
       )
     }
-  }
-
-  private flaggerConfiguration!: IFlaggerConfiguration
-  private sourceURL: string = SOURCE_URL
-  private backupSourceURL: string = BACKUP_SOURCE_URL
-  private sseURL: string = SSE_CONNECTION_URL
-  private ingestionURL: string = INGESTION_URL
-  private core: Core = new Core()
-  private sse!: SSE | null
-  private ingester!: Ingester | null
-  private apiKey!: string
-  private flaggerConfigListeners: Array<
-    (config: IFlaggerConfiguration) => void
-  > = []
-
-  private constructor() {
-    if (Flagger.instance) {
-      throw new Error(
-        'Instantiation failed: Use Flagger.init() instead of new.'
-      )
-    }
-    Flagger.instance = this
   }
 
   private updateFlaggerInstance(
@@ -439,3 +401,5 @@ export class Flagger {
     }
   }
 }
+
+export const flagger = new FlaggerClass()

@@ -1,7 +1,7 @@
 import {SSEServer} from 'mock-sse-server'
 import nock from 'nock'
 import {INGESTION_URL, SOURCE_URL} from './constants'
-import {Flagger} from './Flagger'
+import {Flagger} from './index'
 import conf from './misc/config_example.json'
 import emptyConf from './misc/empty_config_example.json'
 import SSE from './sse'
@@ -115,7 +115,7 @@ describe('sse tests', () => {
       expect(updateLastSSEConnectionTime).toHaveBeenCalledTimes(2)
     }, 100)
 
-    sseInstance.disconnect()
+    sseInstance.shutdown()
   })
 
   it('Check that new config is pushed', async () => {
@@ -132,7 +132,7 @@ describe('sse tests', () => {
     // wait for the changes
     await waitTime(100)
 
-    sseInstance.disconnect()
+    sseInstance.shutdown()
     expect(sseCallback).toBeCalledTimes(2)
     expect(sseCallback.mock.calls[0][0].hashKey).toEqual(config.hashKey)
     expect(sseCallback.mock.calls[1][0].hashKey).toEqual(emptyConf.hashKey)
@@ -167,13 +167,13 @@ describe('sse tests', () => {
     await Flagger.shutdown()
   })
 
-  it('disconnect func stops server from pushing new config', async () => {
+  it('shutdown() stops server from pushing new config', async () => {
     const sseInstance = new SSE()
     const callback = jest.fn()
 
     sseInstance.init(callback, `${sseURL}${apiKey}`)
 
-    sseInstance.disconnect()
+    sseInstance.shutdown()
 
     // wait for client to connect
     await wait(() => {

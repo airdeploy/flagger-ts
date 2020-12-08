@@ -1,17 +1,17 @@
-import {Flagger} from './Flagger'
+import {flagger} from './Flagger'
 
 describe('Flagger test', () => {
   it('flagIsEnabled called without init', () => {
-    expect(Flagger.isEnabled('test')).toBeFalsy()
+    expect(flagger.isEnabled('test')).toBeFalsy()
   })
   it('flagIsSampled called without init', () => {
-    expect(Flagger.isSampled('test')).toBeFalsy()
+    expect(flagger.isSampled('test')).toBeFalsy()
   })
   it('flagGetVariation called without init', () => {
-    expect(Flagger.getVariation('test')).toEqual('off')
+    expect(flagger.getVariation('test')).toEqual('off')
   })
   it('flagGetPayload called without init', () => {
-    expect(Flagger.getPayload('test')).toEqual({})
+    expect(flagger.getPayload('test')).toEqual({})
   })
 
   it('Flagger must not mutate passed entity', () => {
@@ -26,12 +26,12 @@ describe('Flagger test', () => {
       },
       type: ''
     }
-    Flagger.isSampled('whatever', entity)
-    Flagger.isEnabled('whatever', entity)
-    Flagger.getVariation('whatever', entity)
-    Flagger.getPayload('whatever', entity)
-    Flagger.setEntity(entity)
-    Flagger.track('whatever', {}, entity)
+    flagger.isSampled('whatever', entity)
+    flagger.isEnabled('whatever', entity)
+    flagger.getVariation('whatever', entity)
+    flagger.getPayload('whatever', entity)
+    flagger.setEntity(entity)
+    flagger.track('whatever', {}, entity)
     expect(entity).toStrictEqual({
       id: '1',
       attributes: {age: 21, country: 'France', date: '2016-03-16T05:44:23Z'},
