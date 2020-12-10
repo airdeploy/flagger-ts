@@ -110,6 +110,7 @@ export function escapeEntity(entity?: IEntity): IEntity | undefined {
 
 const escapeGroup = (group: IGroup): IGroup => {
   const clone = JSON.parse(JSON.stringify(group))
+  clone.id = clone.id.toString()
   if (!clone.attributes) {
     clone.attributes = {}
   }

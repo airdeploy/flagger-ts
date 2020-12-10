@@ -494,4 +494,40 @@ describe('escape methods tests', () => {
       })
     ).toHaveProperty('attributes', {id: '432423', name: 'John'})
   })
+  describe('should cast id to string', () => {
+    it('number -> string', () => {
+      expect(
+        escapeEntity(
+          JSON.parse(
+            JSON.stringify({
+              id: 1
+            })
+          )
+        )
+      ).toHaveProperty('id', '1')
+    })
+
+    it('should works for group id too', () => {
+      const escaped = escapeEntity(
+        JSON.parse(
+          JSON.stringify({
+            id: 1,
+            group: {
+              id: 2
+            }
+          })
+        )
+      )
+      expect(escaped).toHaveProperty('id', '1')
+      expect(escaped!.group).toHaveProperty('id', '2')
+    })
+
+    it('string remains untouched', () => {
+      expect(
+        escapeEntity({
+          id: '1'
+        })
+      ).toHaveProperty('id', '1')
+    })
+  })
 })
