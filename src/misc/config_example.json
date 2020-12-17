@@ -6,6 +6,67 @@
   "hashKey": "2779",
   "flags": [
     {
+      "hashkey": "n5g5495g48g4hg",
+      "codename": "flag-without-variation",
+      "subpopulations": [
+        {
+          "entityType": "User",
+          "samplingPercentage": 1,
+          "filters": []
+        }
+      ],
+      "whitelist": [
+        {
+          "type": "User",
+          "id": "90843823",
+          "variation": "enabled"
+        }
+      ]
+    },
+    {
+      "hashkey": "804y308380f",
+      "codename": "invalid-whitelist-variation",
+      "variations": [
+        {
+          "codename": "enabled",
+          "probability": 0,
+          "payload": {}
+        }
+      ],
+      "subpopulations": [
+        {
+          "entityType": "User",
+          "samplingPercentage": 1,
+          "filters": []
+        }
+      ],
+      "whitelist": [
+        {
+          "type": "User",
+          "id": "90843823",
+          "variation": "invalid"
+        }
+      ]
+    },
+    {
+      "hashkey": "804y308380f",
+      "codename": "invalid-probability",
+      "variations": [
+        {
+          "codename": "enabled",
+          "probability": 0,
+          "payload": {}
+        }
+      ],
+      "subpopulations": [
+        {
+          "entityType": "User",
+          "samplingPercentage": 1,
+          "filters": []
+        }
+      ]
+    },
+    {
       "hashkey": "adfndsf",
       "codename": "new-signup-flow",
       "variations": [
@@ -25,7 +86,7 @@
             {
               "attributeName": "country",
               "operator": "IN",
-              "type": "string",
+              "type": "STRING",
               "value": ["Japan", "France"]
             }
           ]
@@ -75,7 +136,7 @@
             {
               "attributeName": "country",
               "operator": "IN",
-              "type": "string",
+              "type": "STRING",
               "value": ["Japan", "France"]
             }
           ]
@@ -100,7 +161,7 @@
             {
               "attributeName": "admin",
               "operator": "IS",
-              "type": "boolean",
+              "type": "BOOLEAN",
               "value": true
             }
           ]
@@ -112,7 +173,7 @@
             {
               "attributeName": "country",
               "operator": "IS",
-              "type": "string",
+              "type": "STRING",
               "value": "USA"
             }
           ]
@@ -158,7 +219,7 @@
               "attributeName": "admin",
               "operator": "IS",
               "value": true,
-              "type": "boolean"
+              "type": "BOOLEAN"
             }
           ]
         },
@@ -244,8 +305,8 @@
             {
               "attributeName": "createdAt",
               "operator": "LTE",
-              "type": "date",
-              "value": 1411171200
+              "type": "DATE",
+              "value": "2014-09-20T00:00:00Z"
             }
           ]
         },
@@ -257,7 +318,7 @@
               "attributeName": "country",
               "operator": "IS",
               "value": "South Korea",
-              "type": "string"
+              "type": "STRING"
             }
           ]
         }

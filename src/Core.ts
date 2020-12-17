@@ -255,7 +255,7 @@ export class Core implements ICoreInterface {
           return {
             hashkey: flagFromConfig.hashkey,
             codename,
-            isEnabled: !flagFromConfig.killSwitchEngaged,
+            isEnabled: true,
             isSampled: true,
             payload: variation ? variation.payload : {},
             variation,
@@ -300,11 +300,11 @@ export class Core implements ICoreInterface {
     }
     const allocationHashKey = flagCodename + entityId + entityType
     const allocationHashedPercentage = getHashedValue(allocationHashKey)
-    let cummulativeSum = 0
+    let cumulativeSum = 0
 
     for (const variation of variations) {
-      cummulativeSum += variation.probability
-      if (cummulativeSum > allocationHashedPercentage) {
+      cumulativeSum += variation.probability
+      if (cumulativeSum > allocationHashedPercentage) {
         return variation
       }
     }

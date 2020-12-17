@@ -114,6 +114,34 @@ describe('ingestion plugin data test', () => {
         event.entity.id
       )
     })
+
+    it(".publish() doesn't ingest for invalid entity", async () => {
+      const trackCallback = jest.fn()
+      api
+        .post(uri)
+        .optionally()
+        .reply(200, (_, body: any) => {
+          trackCallback({entities: body.entities})
+        })
+
+      await Flagger.init({
+        apiKey,
+        sdkInfo: {name: JS_SDK_NAME, version},
+        sseURL
+      })
+
+      Flagger.publish(JSON.parse(JSON.stringify('')))
+      Flagger.publish(JSON.parse(JSON.stringify({})))
+
+      await Flagger.shutdown()
+
+      api.done()
+      nock.cleanAll()
+      scope = nock(SOURCE_URL)
+        .get('/' + apiKey)
+        .reply(200, FlaggerConfiguration)
+        .persist(true)
+    })
     it('flag.isEnabled() triggers SDK to send data in ~250ms', done => {
       let timestamp: number = 0
       const trackCallback = jest.fn(
@@ -251,6 +279,31 @@ describe('ingestion plugin data test', () => {
         timestamp = Date.now()
         Flagger.getVariation(CODENAME_FROM_CONFIG, event.entity)
       })
+    })
+
+    it("track() doesn't ingest for invalid entity", async () => {
+      const trackCallback = jest.fn()
+      api
+        .post(uri)
+        .optionally()
+        .reply(200, async (_, body: Body) => {
+          trackCallback(body)
+        })
+      await Flagger.init({
+        apiKey,
+        sdkInfo: {name: JS_SDK_NAME, version},
+        sseURL
+      })
+
+      Flagger.track('test', {admin: true}, JSON.parse(JSON.stringify({})))
+      Flagger.track('test', {admin: true}, JSON.parse(JSON.stringify('')))
+
+      api.done()
+      nock.cleanAll()
+      scope = nock(SOURCE_URL)
+        .get('/' + apiKey)
+        .reply(200, FlaggerConfiguration)
+        .persist(true)
     })
     it('ingestion data validation', async () => {
       const trackCallback = jest.fn()
@@ -454,6 +507,8 @@ describe('ingestion plugin data test', () => {
       })
       await Flagger.init({
         apiKey,
+        sourceURL: SOURCE_URL,
+        ingestionURL: INGESTION_URL,
         sdkInfo: {name: NODEJS_SDK_NAME, version},
         sseURL
       })

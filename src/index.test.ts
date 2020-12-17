@@ -1,6 +1,6 @@
 import nock from 'nock'
-import {INGESTION_URL, SOURCE_URL} from './constants'
-import Flagger, {FlaggerClass} from './index'
+import {BACKUP_SOURCE_URL, INGESTION_URL, SOURCE_URL} from './constants'
+import Flagger, {FlaggerClass, LogLevel} from './index'
 import FlaggerConfiguration from './misc/config_example.json'
 
 const apiKey = 'testApiKey'
@@ -31,11 +31,13 @@ describe('init function tests', () => {
 
     await Flagger.init({
       apiKey,
-      sseURL
+      sseURL,
+      logLevel: LogLevel.debug
     })
     await Flagger.init({
       apiKey,
-      sseURL
+      sseURL,
+      logLevel: LogLevel.error
     })
 
     await Flagger.shutdown()
@@ -63,6 +65,7 @@ describe('init function tests', () => {
     await expect(
       Flagger.init({
         apiKey,
+        sseURL,
         backupSourceURL: SOURCE_URL
       })
     ).rejects.toThrow()
@@ -109,24 +112,32 @@ describe('init function tests', () => {
       const callback = jest.fn()
       const scope = flagConfigScope
         .get(flagConfigPathname)
-        .times(6)
+        .thrice()
         .reply(500, callback)
-      try {
-        await Flagger.init({
-          apiKey,
-          backupSourceURL: SOURCE_URL
-        })
-      } catch (err) {
-        // since sourceURL and backupURL are the same callCount == 6
-        expect(callback).toHaveBeenCalledTimes(6)
-        await Flagger.shutdown()
-        scope.done()
-      }
+
+      const backupScope = nock(new URL(BACKUP_SOURCE_URL).origin)
+        .get(flagConfigPathname)
+        .reply(200, FlaggerConfiguration)
+
+      expect(Flagger.isConfigured()).toBeFalsy()
+
+      await Flagger.init({
+        apiKey,
+        sseURL
+      })
+
+      // since sourceURL and backupURL are the same callCount == 6
+      expect(callback).toHaveBeenCalledTimes(3)
+
+      expect(Flagger.isConfigured()).toBeTruthy()
+      await Flagger.shutdown()
+      scope.done()
+      backupScope.done()
     })
   })
 
-  describe('flag tests', () => {
-    it('flag isEnabled should be true', async () => {
+  describe('setEntity tests', () => {
+    it("setEntity doesn't set invalid entity", async () => {
       ingestionScope
         .post(ingestionPathname)
         .twice()
@@ -143,11 +154,13 @@ describe('init function tests', () => {
       })
 
       Flagger.setEntity({
-        // tslint:disable-next-line: object-literal-sort-keys
         id: '3423',
-        type: 'User',
         attributes: {country: 'Japan'}
       })
+
+      // not set
+      Flagger.setEntity(JSON.parse(JSON.stringify({})))
+
       expect(Flagger.isEnabled('new-signup-flow')).toBeTruthy()
       await Flagger.shutdown()
       scope.done()
@@ -165,9 +178,7 @@ describe('init function tests', () => {
         sdkInfo: {name: 'nodejs', version: '0.1.0'}
       })
       Flagger.setEntity({
-        // tslint:disable-next-line: object-literal-sort-keys
         id: '3423',
-        type: 'User',
         attributes: {country: 'Japan'}
       })
       expect(Flagger.isSampled('new-signup-flow')).toEqual(true)
@@ -240,20 +251,20 @@ describe('isConfigured() tests', () => {
   })
 
   it('returns true after successful initialization', async () => {
-    await Flagger.init({apiKey})
+    await Flagger.init({apiKey, sseURL})
     const configured = Flagger.isConfigured()
     expect(configured).toBe(true)
   })
 
   it('returns false after shutdown complete', async () => {
-    await Flagger.init({apiKey})
+    await Flagger.init({apiKey, sseURL})
     await Flagger.shutdown()
     const configured = Flagger.isConfigured()
     expect(configured).toBe(false)
   })
 
   it('returns false if shutdown is still in progress', async () => {
-    await Flagger.init({apiKey})
+    await Flagger.init({apiKey, sseURL})
     const promise = Flagger.shutdown()
     const configured = Flagger.isConfigured()
     await promise

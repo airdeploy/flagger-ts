@@ -1,4 +1,10 @@
-import {escapeAttributes, IAttributes, IFilter} from './Types'
+import {
+  escapeAttributes,
+  FilterType,
+  IAttributes,
+  IFilter,
+  IFilterValue
+} from './Types'
 
 export enum FilterOperator {
   IS = 'IS',
@@ -77,15 +83,18 @@ function parseDateValue(value: any): number | null {
   }
 }
 
-function escapeAttributeValue(value: any, type: string) {
-  if (type === 'date') {
+function escapeAttributeValue(value: any, type: FilterType) {
+  if (type === FilterType.DATE) {
     return parseDateValue(value)
   }
   return value
 }
 
-export function escapeFilterValue(filterValue: any, type: string): any {
-  if (type === 'date') {
+export function escapeFilterValue(
+  filterValue: any,
+  type: FilterType
+): IFilterValue {
+  if (type === FilterType.DATE) {
     if (filterValue instanceof Array) {
       const temp = []
       for (const filter of filterValue) {
@@ -111,22 +120,21 @@ export default function filtersMatcher(
     return false
   }
 
-  attributes = escapeAttributes(attributes)
-
-  // make lower case all attributes keys
-  for (const key in attributes) {
-    if (attributes.hasOwnProperty(key)) {
-      attributes[key.toLowerCase()] = attributes[key]
+  // verify attributeValue type
+  for (const [, value] of Object.entries(attributes)) {
+    if (
+      typeof value !== 'string' &&
+      typeof value !== 'number' &&
+      typeof value !== 'boolean'
+    ) {
+      return false
     }
   }
 
-  // make lower all filters attribute names
-  for (const filter of filters) {
-    filter.attributeName = filter.attributeName.toLowerCase()
-  }
+  attributes = escapeAttributes(attributes)
 
   for (const filter of filters) {
-    const attribute = attributes[filter.attributeName]
+    const attribute = attributes[filter.attributeName.toLowerCase()]
 
     if (
       typeof attribute === 'undefined' &&

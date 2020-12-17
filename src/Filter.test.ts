@@ -1,17 +1,23 @@
 import filtersMatcher, {escapeFilterValue, FilterOperator} from './Filter'
-import {IAttributes, IAttributeValue, IFilter, IFilterValue} from './Types'
+import {
+  FilterType,
+  IAttributes,
+  IAttributeValue,
+  IFilter,
+  IFilterValue
+} from './Types'
 
 describe('filter test', () => {
   describe('escape function test', () => {
     it('escapeFilter test', () => {
-      expect(escapeFilterValue('2016-03-16T05:44:23Z', 'date')).toEqual(
-        1458107063000
-      )
-      expect(escapeFilterValue(['2016-03-16T05:44:23Z'], 'date')).toEqual([
-        1458107063000
-      ])
       expect(
-        escapeFilterValue(['2016-03-16T05:44:23Z'], 'string')
+        escapeFilterValue('2016-03-16T05:44:23Z', FilterType.DATE)
+      ).toEqual(1458107063000)
+      expect(
+        escapeFilterValue(['2016-03-16T05:44:23Z'], FilterType.DATE)
+      ).toEqual([1458107063000])
+      expect(
+        escapeFilterValue(['2016-03-16T05:44:23Z'], FilterType.STRING)
       ).toMatchObject(['2016-03-16T05:44:23Z'])
     })
   })
@@ -25,7 +31,7 @@ describe('filter test', () => {
         {
           attributeName: 'bday',
           operator: operator ? operator : FilterOperator.IS,
-          type: 'date',
+          type: FilterType.DATE,
           value: date
         }
       ]
@@ -130,6 +136,152 @@ describe('filter test', () => {
     })
   })
 
+  describe('type mismatch', () => {
+    describe('attribute invalid type', () => {
+      it('should be false', () => {
+        const filters = [
+          {
+            attributeName: 'test',
+            operator: FilterOperator.IS,
+            type: FilterType.STRING,
+            value: 'yes'
+          }
+        ] as IFilter[]
+
+        expect(filtersMatcher(filters, {})).toBeFalsy()
+
+        // @ts-ignore
+        expect(filtersMatcher(filters, {test: new Date()})).toBeFalsy()
+
+        // @ts-ignore
+        expect(filtersMatcher(filters, ['yes'])).toBeFalsy()
+
+        // @ts-ignore
+        expect(filtersMatcher(filters, {test: {yes: true}})).toBeFalsy()
+      })
+    })
+
+    describe('attribute and filter type mismatch', () => {
+      describe('string filter', () => {
+        const filters = [
+          {
+            attributeName: 'name',
+            value: 'James',
+            type: FilterType.STRING,
+            operator: FilterOperator.IS
+          }
+        ] as IFilter[]
+
+        it('boolean', () => {
+          expect(filtersMatcher(filters, {name: true})).toBeFalsy()
+        })
+        it('number', () => {
+          expect(filtersMatcher(filters, {name: 1})).toBeFalsy()
+        })
+      })
+      describe('array of strings filter', () => {
+        const filters = [
+          {
+            attributeName: 'name',
+            value: ['James'],
+            type: FilterType.STRING,
+            operator: FilterOperator.IN
+          }
+        ] as IFilter[]
+
+        it('boolean', () => {
+          expect(filtersMatcher(filters, {name: true})).toBeFalsy()
+        })
+        it('number', () => {
+          expect(filtersMatcher(filters, {name: 1})).toBeFalsy()
+        })
+
+        it('wrong string', () => {
+          expect(filtersMatcher(filters, {name: 'Jones'})).toBeFalsy()
+        })
+
+        it('string', () => {
+          expect(filtersMatcher(filters, {name: 'James'})).toBeTruthy()
+        })
+      })
+      describe('number filter', () => {
+        const filters = [
+          {
+            attributeName: 'age',
+            value: 42,
+            type: FilterType.NUMBER,
+            operator: FilterOperator.IS
+          }
+        ] as IFilter[]
+
+        it('string', () => {
+          expect(filtersMatcher(filters, {age: '42'})).toBeFalsy()
+        })
+        it('boolean', () => {
+          expect(filtersMatcher(filters, {age: true})).toBeFalsy()
+        })
+
+        it('wrong age', () => {
+          expect(filtersMatcher(filters, {age: 43})).toBeFalsy()
+        })
+
+        it('right', () => {
+          expect(filtersMatcher(filters, {age: 42})).toBeTruthy()
+        })
+      })
+      describe('array of numbers filter', () => {
+        const filters = [
+          {
+            attributeName: 'age',
+            value: [42],
+            type: FilterType.NUMBER,
+            operator: FilterOperator.IN
+          }
+        ] as IFilter[]
+
+        it('string', () => {
+          expect(filtersMatcher(filters, {age: '42'})).toBeFalsy()
+        })
+        it('boolean', () => {
+          expect(filtersMatcher(filters, {age: true})).toBeFalsy()
+        })
+
+        it('wrong age', () => {
+          expect(filtersMatcher(filters, {age: 43})).toBeFalsy()
+        })
+
+        it('right', () => {
+          expect(filtersMatcher(filters, {age: 42})).toBeTruthy()
+        })
+      })
+      describe('boolean filter', () => {
+        const filters = [
+          {
+            attributeName: 'isadmin',
+            value: true,
+            type: FilterType.BOOLEAN,
+            operator: FilterOperator.IS
+          }
+        ] as IFilter[]
+
+        it('string', () => {
+          expect(filtersMatcher(filters, {isAdmin: 'true'})).toBeFalsy()
+        })
+        it('number', () => {
+          expect(filtersMatcher(filters, {isAdmin: 1})).toBeFalsy()
+        })
+
+        it('wrong', () => {
+          expect(filtersMatcher(filters, {isAdmin: false})).toBeFalsy()
+        })
+
+        it('right', () => {
+          expect(filtersMatcher(filters, {isAdmin: true})).toBeTruthy()
+        })
+      })
+    })
+  })
+
   describe('filter edge cases', () => {
     it('undefined and empty', () => {
       expect(filtersMatcher([], undefined)).toBe(true)
@@ -139,7 +291,7 @@ describe('filter test', () => {
             {
               attributeName: 'COUNTRY',
               operator: FilterOperator.IS,
-              type: 'string',
+              type: FilterType.STRING,
               value: 'Japan'
             }
           ],
@@ -153,7 +305,7 @@ describe('filter test', () => {
           attributeName: 'COUNTRY',
           operator: FilterOperator.IS,
           value: 'Japan',
-          type: 'string'
+          type: FilterType.STRING
         }
       ]
       expect(
@@ -171,7 +323,7 @@ describe('filter test', () => {
           attributeName: 'CoUnTrY',
           operator: FilterOperator.IS,
           value: 'Japan',
-          type: 'string'
+          type: FilterType.STRING
         }
       ]
       expect(
@@ -183,6 +335,54 @@ describe('filter test', () => {
         })
       ).toBe(true)
     })
+
+    it('should return false for invalid filter type', () => {
+      expect(
+        filtersMatcher(
+          [
+            {
+              attributeName: 'bday',
+              operator: FilterOperator.IN,
+              type: FilterType.DATE,
+              value: 'wrongFilterValue'
+            }
+          ],
+          {bday: ''}
+        )
+      ).toBeFalsy()
+
+      expect(
+        filtersMatcher(
+          [
+            {
+              attributeName: 'bday',
+              operator: FilterOperator.NOT_IN,
+              type: FilterType.DATE,
+              value: 'invalid'
+            }
+          ],
+          {bday: ''}
+        )
+      ).toBeFalsy()
+    })
+
+    it('should return false for unknown operator', () => {
+      expect(
+        filtersMatcher(
+          [
+            JSON.parse(
+              JSON.stringify({
+                attributeName: 'bday',
+                operator: 'invalid operator',
+                type: FilterType.STRING,
+                value: 'wrongFilterValue'
+              })
+            )
+          ],
+          {bday: ''}
+        )
+      ).toBeFalsy()
+    })
   })
   describe('single filter tests', () => {
     test('is test', () => {
@@ -191,7 +391,7 @@ describe('filter test', () => {
           attributeName: 'country',
           operator: FilterOperator.IS,
           value: 'Japan',
-          type: 'string'
+          type: FilterType.STRING
         }
       ]
       const ageFilters = [
@@ -199,7 +399,7 @@ describe('filter test', () => {
           attributeName: 'age',
           operator: FilterOperator.IS,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         }
       ]
       const adminFilters = [
@@ -207,7 +407,7 @@ describe('filter test', () => {
           attributeName: 'admin',
           operator: FilterOperator.IS,
           value: true,
-          type: 'boolean'
+          type: FilterType.BOOLEAN
         }
       ]
       const birthdayFilter = [
@@ -215,7 +415,7 @@ describe('filter test', () => {
           attributeName: 'birthday',
           operator: FilterOperator.IS,
           value: '1992-07-15T07:35:07Z',
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
       const match = {
@@ -253,7 +453,7 @@ describe('filter test', () => {
           attributeName: 'country',
           operator: FilterOperator.IS_NOT,
           value: 'Japan',
-          type: 'string'
+          type: FilterType.STRING
         }
       ]
       const ageFilters = [
@@ -261,7 +461,7 @@ describe('filter test', () => {
           attributeName: 'age',
           operator: FilterOperator.IS_NOT,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         }
       ]
       const adminFilters = [
@@ -269,7 +469,7 @@ describe('filter test', () => {
           attributeName: 'admin',
           operator: FilterOperator.IS_NOT,
           value: true,
-          type: 'boolean'
+          type: FilterType.BOOLEAN
         }
       ]
       const birthdayUnixFilter = [
@@ -277,7 +477,7 @@ describe('filter test', () => {
           attributeName: 'birthdayUnix',
           operator: FilterOperator.IS_NOT,
           value: 711185707000,
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
       const noMatch = {
@@ -307,7 +507,7 @@ describe('filter test', () => {
           attributeName: 'age',
           operator: FilterOperator.LT,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         }
       ]
       const birthdayUnixFilter = [
@@ -315,7 +515,7 @@ describe('filter test', () => {
           attributeName: 'birthdayUnix',
           operator: FilterOperator.LT,
           value: 711185707000,
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
 
@@ -343,7 +543,7 @@ describe('filter test', () => {
           attributeName: 'age',
           operator: FilterOperator.LTE,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         }
       ]
       const birthdayUnixFilter = [
@@ -351,7 +551,7 @@ describe('filter test', () => {
           attributeName: 'birthdayUnix',
           operator: FilterOperator.LTE,
           value: 711185707000,
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
 
@@ -379,7 +579,7 @@ describe('filter test', () => {
           attributeName: 'age',
           operator: FilterOperator.GT,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         }
       ]
       const birthdayUnixFilter = [
@@ -387,7 +587,7 @@ describe('filter test', () => {
           attributeName: 'birthdayUnix',
           operator: FilterOperator.GT,
           value: 711185707000,
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
 
@@ -415,7 +615,7 @@ describe('filter test', () => {
           attributeName: 'age',
           operator: FilterOperator.GTE,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         }
       ]
       const birthdayUnixFilter = [
@@ -423,7 +623,7 @@ describe('filter test', () => {
           attributeName: 'birthdayUnix',
           operator: FilterOperator.GTE,
           value: 711185707000,
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
 
@@ -451,7 +651,7 @@ describe('filter test', () => {
           attributeName: 'birthday',
           operator: FilterOperator.IN,
           value: [711185707000],
-          type: 'date'
+          type: FilterType.DATE
         }
       ]
       const match = {
@@ -464,13 +664,13 @@ describe('filter test', () => {
       expect(filtersMatcher(birthdayFilter, noMatch)).toBe(false)
     })
 
-    test('not_in test', () => {
+    describe('not_in test', () => {
       const countryFilters = [
         {
           attributeName: 'country',
           operator: FilterOperator.NOT_IN,
-          value: ['Japan', 'Ukraine'],
-          type: 'string'
+          value: JSON.parse(JSON.stringify(['Japan', 'Ukraine', undefined])),
+          type: FilterType.STRING
         }
       ]
       const match = {
@@ -485,8 +685,15 @@ describe('filter test', () => {
         admin: false,
         birthday: 71118434000
       }
-      expect(filtersMatcher(countryFilters, match)).toBe(true)
-      expect(filtersMatcher(countryFilters, noMatch)).toBe(false)
+      it('should be true', () => {
+        expect(filtersMatcher(countryFilters, match)).toBeTruthy()
+      })
+      it('should be false, wrong country', () => {
+        expect(filtersMatcher(countryFilters, noMatch)).toBe(false)
+      })
+      it('should be true, country is not in attributes', () => {
+        expect(filtersMatcher(countryFilters, {age: 36})).toBeTruthy()
+      })
     })
   })
   describe('multiple filters tests', () => {
@@ -496,19 +703,19 @@ describe('filter test', () => {
           attributeName: 'country',
           operator: FilterOperator.IS,
           value: 'Japan',
-          type: 'string'
+          type: FilterType.STRING
         },
         {
           attributeName: 'age',
           operator: FilterOperator.IS,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         },
         {
           attributeName: 'admin',
           operator: FilterOperator.IS,
           value: true,
-          type: 'boolean'
+          type: FilterType.BOOLEAN
         }
       ]
       const match = {country: 'Japan', age: 21, admin: true}
@@ -528,19 +735,19 @@ describe('filter test', () => {
           attributeName: 'country',
           operator: FilterOperator.IS_NOT,
           value: 'Japan',
-          type: 'string'
+          type: FilterType.STRING
         },
         {
           attributeName: 'age',
           operator: FilterOperator.IS_NOT,
           value: 21,
-          type: 'number'
+          type: FilterType.NUMBER
         },
         {
           attributeName: 'admin',
           operator: FilterOperator.IS_NOT,
           value: true,
-          type: 'boolean'
+          type: FilterType.BOOLEAN
         }
       ]
       const match = {country: 'Ukraine', age: 22, admin: false}

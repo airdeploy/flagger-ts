@@ -69,8 +69,15 @@ export type IFilterValue =
 export interface IFilter {
   attributeName: string
   operator: FilterOperator
-  type: string
+  type: FilterType
   value: IFilterValue
+}
+
+export enum FilterType {
+  STRING = 'STRING',
+  NUMBER = 'NUMBER',
+  BOOLEAN = 'BOOLEAN',
+  DATE = 'DATE'
 }
 
 export function escapeAttributes(attributes: IAttributes) {
@@ -110,7 +117,9 @@ export function escapeEntity(entity?: IEntity): IEntity | undefined {
 
 const escapeGroup = (group: IGroup): IGroup => {
   const clone = JSON.parse(JSON.stringify(group))
-  clone.id = clone.id.toString()
+  if (clone.id) {
+    clone.id = clone.id.toString()
+  }
   if (!clone.attributes) {
     clone.attributes = {}
   }

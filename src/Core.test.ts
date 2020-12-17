@@ -181,6 +181,22 @@ describe("Individual Blacklist test, 'new-signup-flow' flag is in blacklist for 
   })
 })
 
+describe('setEntity tests', () => {
+  const flagCodename = 'new-signup-flow'
+  const entity = {type: 'User', id: '90843823'}
+
+  test('isEnabled should be true', () => {
+    core.setEntity(entity)
+    const flag = core.evaluateFlagProperties(flagCodename)
+    expect(flag.isEnabled).toEqual(true)
+    expect(flag.reason).toEqual(Reason.INDIVIDUAL_WHITELIST)
+    expect(flag.hashkey).not.toEqual(undefined)
+    expect(core.getEntity()).toBe(entity)
+    core.setEntity(undefined)
+    expect(core.getEntity()).toBe(undefined)
+  })
+})
+
 describe("Individual Whitelist test, 'new-signup-flow' flag is in whitelist for type:User; ids:90843823,14612844,64741829; variation: enabled", () => {
   const flagCodename = 'new-signup-flow'
   const entity = {type: 'User', id: '90843823'}
@@ -223,6 +239,31 @@ describe("Individual Whitelist test, 'new-signup-flow' flag is in whitelist for 
     expect(variation.probability).toEqual(1.0)
     expect(variation.payload).not.toBeNull()
     expect(variation.payload.showButtons).toEqual(true)
+  })
+
+  test('flag without variations should return empty variation', () => {
+    const flagResult = core.evaluateFlagProperties('flag-without-variation', {
+      id: '90843823',
+      type: 'User'
+    })
+    expect(flagResult.isEnabled).toBeTruthy()
+    expect(flagResult.isSampled).toBeFalsy()
+    expect(flagResult.payload).toEqual({})
+    expect(flagResult.variation.codename).toEqual('off')
+  })
+
+  test('invalid whitelist variation should return empty variation', () => {
+    const flagResult = core.evaluateFlagProperties(
+      'invalid-whitelist-variation',
+      {
+        id: '90843823',
+        type: 'User'
+      }
+    )
+    expect(flagResult.isEnabled).toBeTruthy()
+    expect(flagResult.isSampled).toBeFalsy()
+    expect(flagResult.payload).toEqual({})
+    expect(flagResult.variation.codename).toEqual('off')
   })
 })
 
@@ -303,6 +344,21 @@ describe("Group whitelist test, 'enterprise-dashboard' flag has group whitelist 
     expect(variation.payload).not.toBeNull()
     expect(variation.payload.newFeature).toEqual('on')
   })
+
+  test('flag without variations should return empty variation', () => {
+    const flagResult = core.evaluateFlagProperties('flag-without-variation', {
+      id: 'any',
+      type: 'entity',
+      group: {
+        id: '90843823',
+        type: 'User'
+      }
+    })
+    expect(flagResult.isEnabled).toBeTruthy()
+    expect(flagResult.isSampled).toBeFalsy()
+    expect(flagResult.payload).toEqual({})
+    expect(flagResult.variation.codename).toEqual('off')
+  })
 })
 
 describe('individual policy always beats group policy', () => {
@@ -381,6 +437,28 @@ describe('Individual subpopulation sample, Single subpopulation of type "User", 
     expect(variation.probability).toEqual(1.0)
     expect(variation.payload).not.toBeNull()
     expect(variation.payload.showButtons).toEqual(true)
+  })
+
+  it('flagConfig without variation should return empty variation', () => {
+    const flagResult = core.evaluateFlagProperties('flag-without-variation', {
+      id: '1',
+      type: 'User'
+    })
+    expect(flagResult.isEnabled).toBeTruthy()
+    expect(flagResult.isSampled).toBeTruthy()
+    expect(flagResult.payload).toEqual({})
+    expect(flagResult.variation.codename).toEqual('off')
+  })
+
+  it('flagConfig with wrong probability should return empty variation', () => {
+    const flagResult = core.evaluateFlagProperties('invalid-probability', {
+      id: '1',
+      type: 'User'
+    })
+    expect(flagResult.isEnabled).toBeTruthy()
+    expect(flagResult.isSampled).toBeTruthy()
+    expect(flagResult.payload).toEqual({})
+    expect(flagResult.variation.codename).toEqual('off')
   })
 })
 
