@@ -7,7 +7,6 @@ module.exports = {
   testPathIgnorePatterns: ['/lib/', '/node_modules/'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   setupFilesAfterEnv: ['./jest.setup.js'],
-  collectCoverage: true,
   testEnvironment: 'node',
   globals: {
     'ts-jest': {

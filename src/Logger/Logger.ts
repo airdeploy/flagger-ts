@@ -8,10 +8,16 @@ export interface ILogger {
   error(msg: string): void
 }
 
+// 'warn' | 'warning' | 'deb' | 'debug' | 'err' | 'error'
+export type LogLevelStrings = keyof typeof LogLevel
+
 export enum LogLevel {
-  ERROR,
-  WARN,
-  DEBUG
+  error,
+  err,
+  warning,
+  warn,
+  debug,
+  deb
 }
 
 /**
@@ -19,7 +25,7 @@ export enum LogLevel {
  * @class Logger
  */
 export class Logger implements ILogger {
-  public static LOG_LEVEL: LogLevel = LogLevel.ERROR
+  public static LOG_LEVEL: LogLevel = LogLevel.error
 
   /**
    * Parse level and return it. By default returns ERROR level
@@ -27,17 +33,17 @@ export class Logger implements ILogger {
    */
   public static parseLevel(level: string): LogLevel {
     if (level.toLowerCase() === 'warn' || level.toLowerCase() === 'warning') {
-      return LogLevel.WARN
+      return LogLevel.warn
     }
     if (level.toLowerCase() === 'debug' || level.toLowerCase() === 'deb') {
-      return LogLevel.DEBUG
+      return LogLevel.debug
     }
 
     if (level.toLowerCase() === 'err' || level.toLowerCase() === 'error') {
-      return LogLevel.ERROR
+      return LogLevel.error
     }
 
-    return LogLevel.ERROR
+    return LogLevel.error
   }
   public name: string
 
@@ -84,14 +90,16 @@ export class Logger implements ILogger {
     }
 
     let log = console.log.bind(console)
-    if (type === LogLevel.ERROR && console.error) {
+    if (type === LogLevel.error && console.error) {
       log = console.error.bind(console)
     }
-    if (type === LogLevel.WARN && console.warn) {
+    if (type === LogLevel.warn && console.warn) {
       log = console.warn.bind(console)
     }
 
-    const prefix = `[${type}] ${this._ts()} ${this.name}`
+    const prefix = `[${LogLevel[type].toUpperCase()}] ${this._ts()} ${
+      this.name
+    }`
 
     if (msg.length === 1 && typeof msg[0] === 'string') {
       log(`${prefix} - ${msg[0]}`)
@@ -115,7 +123,7 @@ export class Logger implements ILogger {
    * @param {string|object} msg - Logging message or object
    */
   public warn(...msg: any[]) {
-    this._log(LogLevel.WARN, ...msg)
+    this._log(LogLevel.warn, ...msg)
   }
 
   /**
@@ -125,7 +133,7 @@ export class Logger implements ILogger {
    * @param {string|object} msg - Logging message or object
    */
   public error(...msg: any[]) {
-    this._log(LogLevel.ERROR, ...msg)
+    this._log(LogLevel.error, ...msg)
   }
 
   /**
@@ -135,6 +143,6 @@ export class Logger implements ILogger {
    * @param {string|object} msg - Logging message or object
    */
   public debug(...msg: any[]) {
-    this._log(LogLevel.DEBUG, ...msg)
+    this._log(LogLevel.debug, ...msg)
   }
 }

@@ -11,7 +11,7 @@ import {
 } from './constants'
 import {Core} from './Core'
 import Ingester from './ingester/Ingester'
-import {Logger, LogLevel} from './Logger/Logger'
+import {Logger, LogLevel, LogLevelStrings} from './Logger/Logger'
 import SSE from './sse'
 import {
   escapeEntity,
@@ -92,7 +92,7 @@ export class FlaggerClass {
     backupSourceURL?: string
     sseURL?: string
     ingestionURL?: string
-    logLevel?: LogLevel
+    logLevel?: LogLevelStrings | LogLevel
     sdkInfo?: ISDKInfo
   }) {
     if (!apiKey) {
@@ -101,7 +101,11 @@ export class FlaggerClass {
     }
 
     if (logLevel) {
-      Logger.LOG_LEVEL = logLevel
+      if (typeof logLevel === 'string') {
+        Logger.LOG_LEVEL = Logger.parseLevel(logLevel)
+      } else {
+        Logger.LOG_LEVEL = logLevel
+      }
     }
 
     await this.shutdown()
