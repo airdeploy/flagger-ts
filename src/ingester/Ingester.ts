@@ -3,16 +3,10 @@ import {INGESTION_URL} from '../constants'
 import {Reason} from '../Core'
 import {Logger} from '../Logger/Logger'
 import {IEntity, ISDKInfo} from '../Types'
-import {IEvent, IIngestionData, IIngestionStrategy} from './Interfaces'
+import {IEvent, IIngestionData, IIngestionInterface} from './Interfaces'
 import GroupStrategy from './strategy/groupStrategy'
 
 const logger = new Logger('Ingester')
-
-export interface IIngestionInterface extends IIngestionStrategy {
-  publish(entity: IEntity, callback?: (error: Error) => void): void
-
-  track(event: IEvent, callback?: (error: Error) => void): void
-}
 
 export default class Ingester implements IIngestionInterface {
   private readonly ingestionURL: string = INGESTION_URL
@@ -84,11 +78,11 @@ export default class Ingester implements IIngestionInterface {
   }
 
   public ingest(data: IIngestionData): void {
-    return this.ingestionStrategy.ingest(data)
+    this.ingestionStrategy.ingest(data)
   }
 
   public publish(entity: IEntity): void {
-    return this.ingestionStrategy.ingest({
+    this.ingestionStrategy.ingest({
       entities: [entity],
       sdkInfo: this.sdkInfo
     })
@@ -132,7 +126,11 @@ export default class Ingester implements IIngestionInterface {
     }
   }
 
-  public async sendIngestionNow() {
-    return this.ingestionStrategy.sendIngestionNow()
+  public start(): void {
+    this.ingestionStrategy.start()
+  }
+
+  public async shutdown() {
+    return this.ingestionStrategy.shutdown()
   }
 }

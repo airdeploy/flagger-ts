@@ -51,7 +51,7 @@ const NODEJS_SDK_NAME = 'nodejs'
 const ingestionUrl = new URL(INGESTION_URL)
 const api = nock(ingestionUrl.origin)
 const uri = ingestionUrl.pathname + apiKey
-const sseURL = 'http://localhost/sse'
+const sseURL = 'http://localhost/skip/'
 
 let scope: nock.Scope
 
@@ -81,7 +81,7 @@ describe('ingestion plugin data test', () => {
           expect(events[0].entity.id).toEqual(event.entity.id)
         }
         expect(events[0].properties.plan).toEqual(event.properties.plan)
-        ingester.sendIngestionNow().then(_ => {
+        ingester.shutdown().then(_ => {
           done()
         })
       })
@@ -105,7 +105,7 @@ describe('ingestion plugin data test', () => {
 
       ingester.publish(event.entity)
 
-      await ingester.sendIngestionNow()
+      await ingester.shutdown()
 
       expect(trackCallback).toBeCalled()
       expect(trackCallback)
@@ -143,6 +143,7 @@ describe('ingestion plugin data test', () => {
         .persist(true)
     })
     it('flag.isEnabled() triggers SDK to send data in ~250ms', done => {
+      catchIngestion(1) // empty init
       let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
@@ -177,6 +178,8 @@ describe('ingestion plugin data test', () => {
       })
     })
     it('flag.isSampled() triggers SDK to send data in ~250ms', done => {
+      catchIngestion(1) // empty init
+
       let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
@@ -211,6 +214,8 @@ describe('ingestion plugin data test', () => {
       })
     })
     it('flag.getPayload() triggers SDK to send data in ~250ms', done => {
+      catchIngestion(1) // empty init
+
       let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
@@ -246,6 +251,8 @@ describe('ingestion plugin data test', () => {
       })
     })
     it('flag.getVariation() triggers SDK to send data in ~250ms', done => {
+      catchIngestion(1) // empty init
+
       let timestamp: number = 0
       const trackCallback = jest.fn(
         ({
@@ -307,9 +314,13 @@ describe('ingestion plugin data test', () => {
     })
     it('ingestion data validation', async () => {
       const trackCallback = jest.fn()
-      api.post(uri).reply(200, async (_, body: Body) => {
-        trackCallback(body)
-      })
+      const toBeCalled = 3 // emtpy init + max call + timer runs out
+      api
+        .post(uri)
+        .times(toBeCalled)
+        .reply(200, async (_, body: Body) => {
+          trackCallback(body)
+        })
       await Flagger.init({
         apiKey,
         sdkInfo: {name: JS_SDK_NAME, version},
@@ -325,10 +336,13 @@ describe('ingestion plugin data test', () => {
         Flagger.track('test', {admin: true}, event.entity)
         Flagger.publish(event.entity)
       }
+      await waitTime(400)
 
-      await waitTime(300)
+      expect(trackCallback).toBeCalledTimes(toBeCalled)
 
-      expect(trackCallback).toBeCalledTimes(1)
+      await Flagger.shutdown() // doesn't trigger anything, ingester is empty
+
+      expect(trackCallback).toBeCalledTimes(toBeCalled)
 
       ingestionValidator(trackCallback.mock.calls[0][0])
       const errors = ajv.errorsText(ingestionValidator.errors)
@@ -340,10 +354,13 @@ describe('ingestion plugin data test', () => {
     it('data is sent after SDK collected 500 api calls', async () => {
       const trackCallback = jest.fn()
 
-      api.post(uri).reply(200, (_, body: any) => {
-        const {entities, exposures} = body
-        trackCallback({entities, exposures})
-      })
+      api
+        .post(uri)
+        .times(12)
+        .reply(200, (_, body: any) => {
+          const {entities, exposures} = body
+          trackCallback({entities, exposures})
+        })
 
       await Flagger.init({
         apiKey,
@@ -357,24 +374,29 @@ describe('ingestion plugin data test', () => {
 
       await Flagger.shutdown()
 
-      // 10 times because first 10 exposures and than after 500 hits
-      expect(trackCallback).toBeCalledTimes(11)
+      // 12 times:
+      // - empty init
+      // - first 10 exposures
+      // - the rest 500 exposures
+      expect(trackCallback).toBeCalledTimes(12)
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 1; i < 11; i++) {
         expect(trackCallback.mock.calls[i][0].exposures.length).toEqual(1)
       }
-      expect(trackCallback.mock.calls[10][0].exposures.length).toEqual(500)
+      expect(trackCallback.mock.calls[11][0].exposures.length).toEqual(500)
 
-      expect(trackCallback.mock.calls[10][0].entities.length).toEqual(1)
-      expect(trackCallback.mock.calls[10][0].entities[0].id).toEqual(
+      expect(trackCallback.mock.calls[11][0].entities.length).toEqual(1)
+      expect(trackCallback.mock.calls[11][0].entities[0].id).toEqual(
         event.entity.id
       )
-      expect(trackCallback.mock.calls[10][0].exposures[0].methodCalled).toEqual(
+      expect(trackCallback.mock.calls[11][0].exposures[0].methodCalled).toEqual(
         'isEnabled'
       )
     })
 
     it('Must return 25 distinct(de-duplicated) entities', async () => {
+      catchIngestion(11) // empty init + first 10 exposures
+
       const trackCallback = jest.fn()
 
       api.post(uri).reply(200, (_, body: any) => {
@@ -397,6 +419,7 @@ describe('ingestion plugin data test', () => {
         testEntitiesArray.push(i.toString())
       }
 
+      // 25 * 20 = 500
       for (let i = 0; i < 20; i++) {
         testEntitiesArray.forEach(element => {
           Flagger.isEnabled(CODENAME_FROM_CONFIG, {id: element})
@@ -404,16 +427,18 @@ describe('ingestion plugin data test', () => {
       }
       await Flagger.shutdown()
 
-      expect(trackCallback).toBeCalledTimes(11)
+      expect(trackCallback).toBeCalledTimes(1)
 
-      expect(trackCallback.mock.calls[10][0].entities.length).toEqual(25)
-      expect(trackCallback.mock.calls[10][0].exposures.length).toEqual(500)
-      expect(trackCallback.mock.calls[10][0].exposures[0].methodCalled).toEqual(
+      expect(trackCallback.mock.calls[0][0].entities.length).toEqual(25)
+      expect(trackCallback.mock.calls[0][0].exposures.length).toEqual(500)
+      expect(trackCallback.mock.calls[0][0].exposures[0].methodCalled).toEqual(
         'isEnabled'
       )
     })
 
     it('Must return 20 distinct(de-duplicated) entities since last ingestion', async () => {
+      catchIngestion(11) // empty init + first 10 exposures
+
       const trackCallback = jest.fn()
 
       api.post(uri).reply(200, (_, body: any) => {
@@ -450,24 +475,26 @@ describe('ingestion plugin data test', () => {
 
       await Flagger.shutdown()
 
-      expect(trackCallback).toBeCalledTimes(12)
+      expect(trackCallback).toBeCalledTimes(2)
 
-      /* 11-th call */
-      expect(trackCallback.mock.calls[10][0].exposures[0].methodCalled).toEqual(
+      /* FIRST */
+      expect(trackCallback.mock.calls[0][0].exposures[0].methodCalled).toEqual(
         'isEnabled'
       )
-      expect(trackCallback.mock.calls[10][0].entities.length).toEqual(25)
-      expect(trackCallback.mock.calls[10][0].exposures.length).toEqual(500)
+      expect(trackCallback.mock.calls[0][0].entities.length).toEqual(25)
+      expect(trackCallback.mock.calls[0][0].exposures.length).toEqual(500)
 
-      /* 12-th call */
-      expect(trackCallback.mock.calls[11][0].exposures[0].methodCalled).toEqual(
+      /* SECOND */
+      expect(trackCallback.mock.calls[1][0].exposures[0].methodCalled).toEqual(
         'isEnabled'
       )
-      expect(trackCallback.mock.calls[11][0].entities.length).toEqual(20)
-      expect(trackCallback.mock.calls[11][0].exposures.length).toEqual(500)
+      expect(trackCallback.mock.calls[1][0].entities.length).toEqual(20)
+      expect(trackCallback.mock.calls[1][0].exposures.length).toEqual(500)
     })
 
     it('data is sent after SDK collected 300 events and 200 flag calls', async () => {
+      catchIngestion(11) // empty init + first 10 exposures
+
       const trackCallback = jest.fn()
       api.post(uri).reply(200, (_, body: any) => {
         trackCallback(body)
@@ -492,15 +519,16 @@ describe('ingestion plugin data test', () => {
 
       await Flagger.shutdown()
 
-      expect(trackCallback).toBeCalledTimes(11)
+      expect(trackCallback).toBeCalledTimes(1)
 
-      /* 11-th call */
-      expect(trackCallback.mock.calls[10][0].entities.length).toEqual(1)
-      expect(trackCallback.mock.calls[10][0].exposures.length).toEqual(200)
-      expect(trackCallback.mock.calls[10][0].events.length).toEqual(300)
+      expect(trackCallback.mock.calls[0][0].entities.length).toEqual(1)
+      expect(trackCallback.mock.calls[0][0].exposures.length).toEqual(200)
+      expect(trackCallback.mock.calls[0][0].events.length).toEqual(300)
     })
 
     it('data is sent after SDK collected 100 events and 300 flag calls and 100 publish calls', async () => {
+      catchIngestion(11) // empty init + first 10 exposures
+
       const trackCallback = jest.fn()
       api.post(uri).reply(200, (_, body: any) => {
         trackCallback(body)
@@ -530,12 +558,12 @@ describe('ingestion plugin data test', () => {
 
       await Flagger.shutdown()
 
-      expect(trackCallback).toBeCalledTimes(11)
+      expect(trackCallback).toBeCalledTimes(1)
 
-      /* 11-th call */
-      expect(trackCallback.mock.calls[10][0].entities.length).toEqual(1)
-      expect(trackCallback.mock.calls[10][0].exposures.length).toEqual(300)
-      expect(trackCallback.mock.calls[10][0].events.length).toEqual(100)
+      /* 12-th call */
+      expect(trackCallback.mock.calls[0][0].entities.length).toEqual(1)
+      expect(trackCallback.mock.calls[0][0].exposures.length).toEqual(300)
+      expect(trackCallback.mock.calls[0][0].events.length).toEqual(100)
     })
     it('should send data every 100 calls', async () => {
       const ingester = new Ingester(
@@ -556,13 +584,16 @@ describe('ingestion plugin data test', () => {
         ingester.track(event)
       }
 
-      await ingester.sendIngestionNow()
+      await ingester.shutdown()
 
       expect(trackCallback).toBeCalledTimes(1)
       expect(trackCallback.mock.calls[0][0].entities.length).toEqual(1)
       expect(trackCallback.mock.calls[0][0].events.length).toEqual(100)
     })
+
     it('test exposure hashkey is absent', async () => {
+      catchIngestion(1) // empty init
+
       const trackCallback = jest.fn()
 
       api.post(uri).reply(200, (_, body: any) => {
@@ -581,7 +612,10 @@ describe('ingestion plugin data test', () => {
         undefined
       )
     })
+
     it('ingestion data validation', async () => {
+      catchIngestion(1) // empty init
+
       const trackCallback = jest.fn()
       api.post(uri).reply(200, (_, body: any) => {
         trackCallback(body)
@@ -600,7 +634,10 @@ describe('ingestion plugin data test', () => {
       const errors = ajv.errorsText(ingestionValidator.errors)
       expect(errors).toEqual('No errors')
     })
+
     it('detected flags test', async () => {
+      catchIngestion(11) // empty init + first 10 exposures
+
       const trackCallback = jest.fn()
       api.post(uri).reply(200, (_, body: any) => {
         trackCallback(body)
@@ -624,19 +661,19 @@ describe('ingestion plugin data test', () => {
 
       await Flagger.shutdown()
 
-      expect(trackCallback).toBeCalledTimes(15)
+      expect(trackCallback).toBeCalledTimes(5)
 
-      expect(trackCallback.mock.calls[10][0].exposures[0].codename).toEqual(
+      expect(trackCallback.mock.calls[0][0].exposures[0].codename).toEqual(
         'test-1'
       )
-      expect(trackCallback.mock.calls[10][0].exposures[0].methodCalled).toEqual(
+      expect(trackCallback.mock.calls[0][0].exposures[0].methodCalled).toEqual(
         'getVariation'
       )
 
-      expect(trackCallback.mock.calls[14][0].exposures[0].methodCalled).toEqual(
+      expect(trackCallback.mock.calls[4][0].exposures[0].methodCalled).toEqual(
         'isEnabled'
       )
-      expect(trackCallback.mock.calls[14][0].exposures[0].codename).toEqual(
+      expect(trackCallback.mock.calls[4][0].exposures[0].codename).toEqual(
         'test-5'
       )
     })
@@ -657,7 +694,7 @@ describe('ingestion plugin data test', () => {
           }
           expect(entities[0].id).toEqual('1')
           expect(events.length).toEqual(2)
-          ingester.sendIngestionNow().then(_ => {
+          ingester.shutdown().then(_ => {
             done()
           })
         }
@@ -686,6 +723,8 @@ describe('ingestion plugin data test', () => {
 
     describe('shutdown() tests', () => {
       it('small payload(no encoding)', async () => {
+        catchIngestion(1) // empty init
+
         const codename = 'new-signup-flow'
         const trackCallback = jest.fn()
         api.post(uri).reply(200, (_, body: any) => {
@@ -707,6 +746,8 @@ describe('ingestion plugin data test', () => {
       })
 
       it('big payload with encoding', async () => {
+        catchIngestion(11) // empty init + first 10 exposures
+
         const trackCallback = jest.fn()
         api
           .post(uri)
@@ -734,10 +775,17 @@ describe('ingestion plugin data test', () => {
 
         await Flagger.shutdown()
 
-        expect(trackCallback).toBeCalledTimes(11)
-        expect(trackCallback.mock.calls[10][0].entities.length).toEqual(1)
-        expect(trackCallback.mock.calls[10][0].entities[0].id).toEqual('1')
+        expect(trackCallback).toBeCalledTimes(1)
+        expect(trackCallback.mock.calls[0][0].entities.length).toEqual(1)
+        expect(trackCallback.mock.calls[0][0].entities[0].id).toEqual('1')
       })
     })
   })
 })
+
+const catchIngestion = (times: number) => {
+  api
+    .post(uri)
+    .times(times)
+    .reply(200)
+}

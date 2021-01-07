@@ -10,6 +10,7 @@ module.exports = {
   testEnvironment: 'node',
   globals: {
     'ts-jest': {
+      diagnostics: false,
       tsConfig: {
         resolveJsonModule: true
       }

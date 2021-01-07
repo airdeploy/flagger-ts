@@ -52,3 +52,7 @@ export const deepEqual = (a: any, b: any): boolean => {
   }
   return a === b
 }
+
+export const getRandomInRange = (upperLimit: number): number => {
+  return Math.floor(Math.random() * upperLimit) + 1
+}

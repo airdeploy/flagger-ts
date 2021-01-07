@@ -1,7 +1,7 @@
 import {SSEServer} from 'mock-sse-server'
 import nock from 'nock'
 import {INGESTION_URL, SOURCE_URL} from './constants'
-import {Flagger} from './index'
+import Flagger from './index'
 import conf from './misc/config_example.json'
 import emptyConf from './misc/empty_config_example.json'
 import SSE from './sse'
@@ -14,12 +14,14 @@ const emptyConfig: IFlaggerConfiguration = emptyConf as IFlaggerConfiguration
 const apiKey = 'testApiKey'
 
 const SSE_PORT = 3102
-const sseURL = `http://localhost:${SSE_PORT}/events/`
+const ssePath = '/skip/'
+const serverURL = `http://localhost:${SSE_PORT}${ssePath}`
 
 let scope: nock.Scope
 const ingestionUrl = new URL(INGESTION_URL)
 const ingestionScope = nock(ingestionUrl.origin)
 const ingestionPathname = ingestionUrl.pathname + apiKey
+const sseUrl = `${serverURL}${apiKey}`
 
 describe('sse tests', () => {
   let sseServer: SSEServer<IFlaggerConfiguration>
@@ -30,7 +32,10 @@ describe('sse tests', () => {
       .reply(200, config)
       .persist(true)
 
-    sseServer = new SSEServer<IFlaggerConfiguration>(SSE_PORT)
+    sseServer = new SSEServer<IFlaggerConfiguration>(
+      SSE_PORT,
+      ssePath + ':apiKey'
+    )
     await sseServer.start()
   })
 
@@ -40,11 +45,12 @@ describe('sse tests', () => {
   })
 
   it('listener gets new config via sse', async () => {
+    catchIngestion(1)
     const newCodename = 'someNewCodename'
     const listener = jest.fn()
     await Flagger.init({
       apiKey,
-      sseURL
+      sseURL: serverURL
     })
 
     Flagger.addFlaggerConfigUpdateListener(listener)
@@ -73,10 +79,11 @@ describe('sse tests', () => {
   })
 
   it('does not trigger flagConfigUpdate event if new config is the same as the current one', async () => {
+    catchIngestion(1)
     const listener = jest.fn()
     await Flagger.init({
       apiKey,
-      sseURL
+      sseURL: serverURL
     })
 
     Flagger.addFlaggerConfigUpdateListener(listener)
@@ -101,9 +108,12 @@ describe('sse tests', () => {
     // ignoring because updateLastSSEConnectionTime is a private function
     // @ts-ignore
     sseInstance.updateLastSSEConnectionTime = updateLastSSEConnectionTime
-    sseInstance.init(() => {
-      // ignoring results of a callback
-    }, `${sseURL}${apiKey}`)
+    sseInstance.init({
+      callback: () => {
+        // ignoring results of a callback
+      },
+      sseUrl
+    })
     // wait for client to connect
 
     await wait(() => {
@@ -120,10 +130,12 @@ describe('sse tests', () => {
 
   it('Check that new config is pushed', async () => {
     const sseInstance = new SSE()
-    const sseCallback = jest.fn()
+    const callback = jest.fn()
 
-    sseInstance.init(sseCallback, `${sseURL}${apiKey}`)
-    // connect
+    sseInstance.init({
+      callback,
+      sseUrl
+    }) // connect
     await waitTime(100)
 
     sseServer.pushNewData(config, 'flagConfigUpdate')
@@ -133,20 +145,17 @@ describe('sse tests', () => {
     await waitTime(100)
 
     sseInstance.shutdown()
-    expect(sseCallback).toBeCalledTimes(2)
-    expect(sseCallback.mock.calls[0][0].hashKey).toEqual(config.hashKey)
-    expect(sseCallback.mock.calls[1][0].hashKey).toEqual(emptyConf.hashKey)
+    expect(callback).toBeCalledTimes(2)
+    expect(callback.mock.calls[0][0].hashKey).toEqual(config.hashKey)
+    expect(callback.mock.calls[1][0].hashKey).toEqual(emptyConf.hashKey)
   })
 
   it('flag isEnabled ==> true, but when new config is pushed isEnabled == false', async () => {
-    ingestionScope
-      .post(ingestionPathname)
-      .twice()
-      .reply(200)
+    catchIngestion(3)
 
     await Flagger.init({
       apiKey,
-      sseURL
+      sseURL: serverURL
     })
 
     // connect
@@ -171,7 +180,10 @@ describe('sse tests', () => {
     const sseInstance = new SSE()
     const callback = jest.fn()
 
-    sseInstance.init(callback, `${sseURL}${apiKey}`)
+    sseInstance.init({
+      callback,
+      sseUrl
+    })
 
     sseInstance.shutdown()
 
@@ -186,4 +198,72 @@ describe('sse tests', () => {
       expect(callback).toHaveBeenCalledTimes(0)
     }, 100)
   })
+
+  it('connection length is greater than limit, no random delay', async () => {
+    const sse = new SSE()
+
+    const utils = require('./utils')
+    const connect = jest.spyOn(sse, 'connect')
+    const getRandomInRange = jest.spyOn(utils, 'getRandomInRange')
+
+    const callback = jest.fn()
+    sse.init({
+      callback,
+      sseUrl,
+      messageTimeout: 1000,
+      keepAliveCheckInterval: 100,
+      addDelayBefore: 500,
+      reconnectionUpperLimit: 10000
+    })
+
+    await waitTime(1500)
+
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(callback).toHaveBeenCalledTimes(0)
+    expect(getRandomInRange).toHaveBeenCalledTimes(0)
+    sse.shutdown()
+  })
+
+  it('connection length is less than limit, reconnect with  delay', async () => {
+    const sse = new SSE()
+
+    const utils = require('./utils')
+    const connect = jest.spyOn(sse, 'connect')
+    const isExceedsLengthLimit = jest.spyOn(sse, 'isExceedsLengthLimit')
+    const getRandomInRange = jest.spyOn(utils, 'getRandomInRange')
+
+    const callback = jest.fn()
+
+    // every 100 ms checks if messageTimeout is reached
+    // the server sends no messages
+    // delay should be added, because connection length is in [1000; 1100]
+    sse.init({
+      callback,
+      sseUrl,
+      messageTimeout: 1000,
+      addDelayBefore: 1500,
+      keepAliveCheckInterval: 100,
+      reconnectionUpperLimit: 100
+    })
+
+    await waitTime(1500)
+
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(callback).toHaveBeenCalledTimes(0)
+    expect(isExceedsLengthLimit).toHaveBeenCalledTimes(1)
+    expect(getRandomInRange).toHaveBeenCalledTimes(1)
+    sse.shutdown()
+  })
+
+  it('call shutdown without init, should be ok', async () => {
+    const sse = new SSE()
+    sse.shutdown()
+  })
 })
+
+const catchIngestion = (times: number) => {
+  ingestionScope
+    .post(ingestionPathname)
+    .times(times)
+    .reply(200)
+}

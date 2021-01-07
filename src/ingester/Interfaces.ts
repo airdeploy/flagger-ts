@@ -18,7 +18,14 @@ export interface IExposure {
 }
 
 export interface IIngestionStrategy {
+  start(): void
   ingest(data: IIngestionData, callback: (error: Error) => void): void
+  shutdown(): Promise<void>
+}
+
+export interface IIngestionInterface extends IIngestionStrategy {
+  publish(entity: IEntity, callback?: (error: Error) => void): void
+  track(event: IEvent, callback?: (error: Error) => void): void
 }
 
 export interface IEvent {

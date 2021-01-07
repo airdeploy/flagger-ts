@@ -1,13 +1,22 @@
 // tslint:disable: object-literal-sort-keys
 import axios from 'axios'
 import nock from 'nock'
+import {waitTime} from '../../utils'
+import {IIngestionData} from '../Interfaces'
 import GroupStrategy from './groupStrategy'
 
 const api = nock('http://localhost')
-const uri = '/track'
+const path = '/track'
 const ingestionURL = 'http://localhost/track'
+import {version} from '../../../package.json'
+
+const sdkInfo = {version, name: 'testjs'}
 
 describe('Group ingestion Strategy tests', () => {
+  afterEach(() => {
+    api.done()
+  })
+
   const id = Math.floor(Math.random() * Math.floor(100)).toString()
   const ingestionData = {
     entities: [{id}],
@@ -23,7 +32,7 @@ describe('Group ingestion Strategy tests', () => {
         timestamp: new Date().toISOString()
       }
     ],
-    sdkInfo: {name: 'js', version: '0.1.0'}
+    sdkInfo
   }
 
   const ingestionDataDetectedFlag = {
@@ -51,11 +60,10 @@ describe('Group ingestion Strategy tests', () => {
       }
     ],
     events: [],
-    sdkInfo: {name: 'js', version: '3.0.1'},
+    sdkInfo,
     detectedFlag: 'example-flags'
   }
 
-  const sdkInfo = {name: 'nodejs', version: '0.1.0'}
   it('sends ingestion with detected flags without delay', async () => {
     const strategy = new GroupStrategy({
       ingestionURL,
@@ -65,13 +73,13 @@ describe('Group ingestion Strategy tests', () => {
 
     const trackCallback = jest.fn()
 
-    api.post(uri).reply(200, (_, body: any) => {
+    api.post(path).reply(200, (_, body: any) => {
       trackCallback({detectedFlags: body.detectedFlags})
     })
 
     strategy.ingest(ingestionDataDetectedFlag)
 
-    await strategy.sendIngestionNow()
+    await strategy.shutdown()
 
     expect(trackCallback).toBeCalledTimes(1)
   })
@@ -88,11 +96,11 @@ describe('Group ingestion Strategy tests', () => {
       strategy.ingest(ingestionData)
     }
 
-    api.post(uri).reply(200, (_, body: any) => {
+    api.post(path).reply(200, (_, body: any) => {
       trackCallback({events: body.events})
     })
 
-    await strategy.sendIngestionNow()
+    await strategy.shutdown()
     expect(trackCallback).toBeCalledTimes(1)
     expect(trackCallback.mock.calls[0][0].events.length).toBe(500)
   })
@@ -102,7 +110,7 @@ describe('Group ingestion Strategy tests', () => {
     let count = 0
     const strategy = new GroupStrategy({
       ingestionURL,
-      sdkInfo: {name: 'nodejs', version: '3.0.0'},
+      sdkInfo,
       ingestionIntervalInMilliseconds: 100,
       sendDataFunction: () => {
         count++
@@ -114,7 +122,7 @@ describe('Group ingestion Strategy tests', () => {
     // simulating ingestion
     const interval = setInterval(() => {
       strategy.ingest({
-        sdkInfo: {version: 'nodejs', name: '3.0.0'},
+        sdkInfo,
         entities: [{id: 'id'}],
         exposures: [
           {
@@ -131,45 +139,15 @@ describe('Group ingestion Strategy tests', () => {
 
     setTimeout(() => {
       strategy.setIngestionInterval(1000)
-    }, 310)
+    }, 350)
 
     setTimeout(() => {
       expect(count).toEqual(6)
-      strategy.sendIngestionNow().then(_ => {
+      strategy.shutdown().then(_ => {
         clearInterval(interval)
         done()
       })
-    }, 3410)
-  })
-
-  it('filter out empty ingestion requests', done => {
-    let count = 0
-    const strategy = new GroupStrategy({
-      ingestionURL,
-      sdkInfo: {name: 'nodejs', version: '3.0.0'},
-      ingestionMaxCalls: 1,
-      sendDataFunction: () => {
-        count++
-        return Promise.resolve()
-      }
-    })
-
-    const interval = setInterval(() => {
-      strategy.ingest({
-        sdkInfo: {version: 'nodejs', name: '3.0.0'},
-        entities: [],
-        exposures: [],
-        events: []
-      })
-    }, 50)
-
-    setTimeout(() => {
-      expect(count).toEqual(0)
-      strategy.sendIngestionNow().then(_ => {
-        clearInterval(interval)
-        done()
-      })
-    }, 1000)
+    }, 3500)
   })
 
   it('group entity by id and type', async () => {
@@ -177,7 +155,7 @@ describe('Group ingestion Strategy tests', () => {
     let sentData: any
     const strategy = new GroupStrategy({
       ingestionURL,
-      sdkInfo: {name: 'nodejs', version: '3.0.0'},
+      sdkInfo,
       ingestionMaxCalls: 2,
       sendDataFunction: (_, data) => {
         count++
@@ -188,22 +166,52 @@ describe('Group ingestion Strategy tests', () => {
     })
 
     strategy.ingest({
-      sdkInfo: {version: 'nodejs', name: '3.0.0'},
+      sdkInfo,
       entities: [{id: '1', type: 'User'}],
       exposures: [],
       events: []
     })
 
     strategy.ingest({
-      sdkInfo: {version: 'nodejs', name: '3.0.0'},
+      sdkInfo,
       entities: [{id: '1', type: 'Company'}],
       exposures: [],
       events: []
     })
 
-    await strategy.sendIngestionNow()
+    await strategy.shutdown()
 
     expect(count).toEqual(1)
     expect(sentData.entities.length).toEqual(2)
+  })
+
+  it('send empty ingestion', async () => {
+    let count = 0
+    let sentData: IIngestionData
+    const strategy = new GroupStrategy({
+      ingestionURL,
+      sdkInfo,
+      ingestionMaxCalls: 1000,
+      sendDataFunction: (_, data) => {
+        count++
+        sentData = data
+        return Promise.resolve()
+      }
+    })
+
+    strategy.start()
+
+    await waitTime(100)
+
+    expect(count).toEqual(1)
+    expect(sentData).toBeDefined()
+    if (sentData) {
+      expect(sentData.entities.length).toEqual(0)
+      expect(sentData.detectedFlags.length).toEqual(0)
+      expect(sentData.exposures.length).toEqual(0)
+      expect(sentData.sdkInfo).toEqual(sdkInfo)
+    }
+
+    await strategy.shutdown()
   })
 })

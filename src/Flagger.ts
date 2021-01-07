@@ -128,6 +128,7 @@ export class FlaggerClass {
     }
 
     this.ingester = new Ingester(localSDKInfo, this.ingestionURL, axiosInstance)
+    this.ingester.start()
 
     await Promise.resolve(axiosInstance.get(this.sourceURL))
       .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
@@ -146,9 +147,12 @@ export class FlaggerClass {
       )
 
     this.sse = new SSE()
-    this.sse.init((newConfigurationFromServer: IFlaggerConfiguration) => {
-      this.updateConfig(newConfigurationFromServer)
-    }, `${this.sseURL}`)
+    this.sse.init({
+      callback: (newConfigurationFromServer: IFlaggerConfiguration) => {
+        this.updateConfig(newConfigurationFromServer)
+      },
+      sseUrl: this.sseURL
+    })
   }
 
   /*****
@@ -340,7 +344,7 @@ export class FlaggerClass {
     }
 
     if (this.ingester) {
-      promise = this.ingester.sendIngestionNow()
+      promise = this.ingester.shutdown()
       this.ingester = null
     }
     delete this.flaggerConfiguration
