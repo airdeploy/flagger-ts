@@ -1,3 +1,5 @@
+import {Logger, LogLevel, LogLevelStrings} from './Logger/Logger'
+
 export const wait = (fn: () => void, timeout: number) => {
   return new Promise(resolve => {
     setTimeout(() => {
@@ -55,4 +57,88 @@ export const deepEqual = (a: any, b: any): boolean => {
 
 export const getRandomInRange = (upperLimit: number): number => {
   return Math.floor(Math.random() * upperLimit) + 1
+}
+
+interface IInputArgs {
+  apiKey?: string
+  sourceURL?: string
+  backupSourceURL?: string
+  sseURL?: string
+  ingestionURL?: string
+  logLevel?: LogLevelStrings | LogLevel
+}
+
+interface IArgsWithEnv {
+  apiKey: string
+  sourceURL?: string
+  backupSourceURL?: string
+  sseURL?: string
+  ingestionURL?: string
+  logLevel: LogLevel
+}
+
+enum FlaggerEnvVars {
+  API_KEY = 'FLAGGER_API_KEY',
+  SOURCE_URL = 'FLAGGER_SOURCE_URL',
+  BACKUP_SOURCE_URL = 'FLAGGER_BACKUP_SOURCE_URL',
+  SSE_URL = 'FLAGGER_SSE_URL',
+  INGESTION_URL = 'FLAGGER_INGESTION_URL',
+  LOG_LEVEL = 'FLAGGER_LOG_LEVEL'
+}
+
+export const populateArgsWithEnv = (
+  config: IInputArgs
+): [IArgsWithEnv?, Error?] => {
+  const apiKey = getVarOrEnv(config.apiKey, FlaggerEnvVars.API_KEY)
+  if (!apiKey) {
+    return [
+      undefined,
+      new Error(
+        'You must provide apiKeys: 1) Define FLAGGER_API_KEY environment variable before init() call. 2) Provide apiKey argument to init()'
+      )
+    ]
+  }
+
+  // parse config from init method, or take it from env var, fallback to error
+  let loglevel: LogLevel = LogLevel.error
+  if (config.logLevel) {
+    if (typeof config.logLevel === 'string') {
+      loglevel = Logger.parseLevel(config.logLevel)
+    } else {
+      loglevel = config.logLevel
+    }
+  } else {
+    const levelFromEnv = getEnv(FlaggerEnvVars.LOG_LEVEL)
+    if (levelFromEnv) {
+      loglevel = Logger.parseLevel(levelFromEnv)
+    }
+  }
+
+  return [
+    {
+      apiKey,
+      sourceURL: getVarOrEnv(config.sourceURL, FlaggerEnvVars.SOURCE_URL),
+      backupSourceURL: getVarOrEnv(
+        config.backupSourceURL,
+        FlaggerEnvVars.BACKUP_SOURCE_URL
+      ),
+      sseURL: getVarOrEnv(config.sseURL, FlaggerEnvVars.SSE_URL),
+      ingestionURL: getVarOrEnv(
+        config.ingestionURL,
+        FlaggerEnvVars.INGESTION_URL
+      ),
+      logLevel: loglevel
+    }
+  ]
+}
+
+const getVarOrEnv = (
+  variable: string | undefined,
+  envVar: string
+): string | undefined => {
+  return variable ? variable : getEnv(envVar)
+}
+
+const getEnv = (env: string): string | undefined => {
+  return process && process.env && process.env[env]
 }

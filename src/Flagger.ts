@@ -20,7 +20,7 @@ import {
   IFlaggerConfiguration,
   ISDKInfo
 } from './Types'
-import {deepEqual} from './utils'
+import {deepEqual, populateArgsWithEnv} from './utils'
 
 // __SDK_NAME__ is overwritten during compile time to either nodejs or js
 const SDK_INFO = {name: '__SDK_NAME__', version: '__VERSION__'}
@@ -87,7 +87,7 @@ export class FlaggerClass {
     logLevel,
     sdkInfo
   }: {
-    apiKey: string
+    apiKey?: string
     sourceURL?: string
     backupSourceURL?: string
     sseURL?: string
@@ -95,28 +95,31 @@ export class FlaggerClass {
     logLevel?: LogLevelStrings | LogLevel
     sdkInfo?: ISDKInfo
   }) {
-    if (!apiKey) {
-      logger.error('No apiKey provided')
-      throw new Error('No apiKey provided')
-    }
-
-    if (logLevel) {
-      if (typeof logLevel === 'string') {
-        Logger.LOG_LEVEL = Logger.parseLevel(logLevel)
-      } else {
-        Logger.LOG_LEVEL = logLevel
-      }
-    }
-
-    await this.shutdown()
-
-    this.updateFlaggerInstance(
+    const [output, noApiKeyErr] = populateArgsWithEnv({
       apiKey,
       sourceURL,
       backupSourceURL,
       sseURL,
-      ingestionURL
-    )
+      ingestionURL,
+      logLevel
+    })
+    if (noApiKeyErr) {
+      logger.error(noApiKeyErr.message)
+      throw noApiKeyErr
+    }
+
+    await this.shutdown()
+
+    if (output) {
+      Logger.LOG_LEVEL = output.logLevel
+      this.updateFlaggerInstance(
+        output.apiKey,
+        output.sourceURL,
+        output.backupSourceURL,
+        output.sseURL,
+        output.ingestionURL
+      )
+    }
 
     const localSDKInfo = sdkInfo ? sdkInfo : SDK_INFO
 
@@ -130,13 +133,19 @@ export class FlaggerClass {
     this.ingester = new Ingester(localSDKInfo, this.ingestionURL, axiosInstance)
     this.ingester.start()
 
+    logger.debug(
+      `Trying to get FlaggerConfiguration from sourceUrl: ${this.sourceURL}`
+    )
     await Promise.resolve(axiosInstance.get(this.sourceURL))
       .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
         this.updateConfig(initConfig)
         return this
       })
-      .catch(() =>
-        Promise.resolve(axiosInstance.get(this.backupSourceURL))
+      .catch(() => {
+        logger.debug(
+          `Trying to get FlaggerConfiguration from backupSourceURL: ${this.backupSourceURL}`
+        )
+        return Promise.resolve(axiosInstance.get(this.backupSourceURL))
           .then(({data: initConfig}: {data: IFlaggerConfiguration}) => {
             this.updateConfig(initConfig)
             return this
@@ -144,7 +153,7 @@ export class FlaggerClass {
           .catch(err => {
             throw err
           })
-      )
+      })
 
     this.sse = new SSE()
     this.sse.init({
@@ -353,11 +362,11 @@ export class FlaggerClass {
   }
 
   private updateConfig(config: IFlaggerConfiguration) {
-    logger.debug('New FlaggerConfiguration: ', JSON.stringify(config))
     const shouldUpdate =
       !this.flaggerConfiguration ||
       !deepEqual(this.flaggerConfiguration, config)
     if (shouldUpdate) {
+      logger.debug('Setting new FlaggerConfiguration: ', JSON.stringify(config))
       this.flaggerConfiguration = config
       this.core.setConfig(config)
       if (this.ingester) {

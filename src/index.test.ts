@@ -34,7 +34,7 @@ describe('init function tests', () => {
 
   it('no apiKey provided test', async () => {
     await expect(Flagger.init({apiKey: ''})).rejects.toThrow(
-      'No apiKey provided'
+      'You must provide apiKeys: 1) Define FLAGGER_API_KEY environment variable before init() call. 2) Provide apiKey argument to init()'
     )
   })
 
