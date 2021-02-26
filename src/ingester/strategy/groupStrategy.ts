@@ -59,6 +59,7 @@ export default class GroupStrategy implements IIngestionStrategy {
   private detectedFlags: Set<string> = new Set()
   private readonly sendDataFunction: (url: string, data: any) => Promise<any>
   private ingestionPromise?: Promise<void>
+  private isInitIngestionSent = false
 
   constructor({
     ingestionURL,
@@ -152,6 +153,13 @@ export default class GroupStrategy implements IIngestionStrategy {
   }
 
   private async sendData(reason: string) {
+    if (this.isEmpty()) {
+      if (this.isInitIngestionSent) {
+        return
+      } else {
+        this.isInitIngestionSent = true
+      }
+    }
     logger.debug(`${reason} triggers ingestion request`)
 
     const requestBody = {

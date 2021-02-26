@@ -47,13 +47,11 @@ describe('init function tests', () => {
 
     await Flagger.init({
       apiKey,
-      sseURL,
-      logLevel: LogLevel.debug
+      sseURL
     })
     await Flagger.init({
       apiKey,
-      sseURL,
-      logLevel: LogLevel.error
+      sseURL
     })
 
     await Flagger.shutdown()

@@ -348,6 +348,26 @@ describe('ingestion plugin data test', () => {
       const errors = ajv.errorsText(ingestionValidator.errors)
       expect(errors).toEqual('No errors')
     })
+    it('browser must not send more than 1 empty ingestion upon init', async () => {
+      const trackCallback = jest.fn()
+      api
+        .post(uri)
+        .optionally()
+        .reply(200, (_, body: any) => {
+          trackCallback(body)
+        })
+
+      await Flagger.init({
+        apiKey,
+        sdkInfo: {name: JS_SDK_NAME, version},
+        sseURL
+      })
+
+      await waitTime(1000)
+
+      expect(trackCallback).toHaveBeenCalledTimes(1)
+      await Flagger.shutdown()
+    })
   })
 
   describe('Nodejs tests', () => {

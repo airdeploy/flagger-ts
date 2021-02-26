@@ -1,6 +1,6 @@
 {
   "name": "flagger",
-  "version": "3.0.15",
+  "version": "3.0.16",
   "description": "An open source JavaScript SDK for feature flagging (feature gating, feature toggles) for Node.js and Javascript applications",
   "main": "dist/index.cjs.js",
   "module": "dist/index.es.js",
